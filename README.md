@@ -5,6 +5,13 @@
 <img width="1187" alt="image-20230926140022539" src="https://github.com/cantabile-kwok/CTX-vec2wav/assets/58417810/036708e0-90a0-4df6-a886-3c1b3ba47e29">
 
 
+### Acknowledgement
+During the development, the following repositories are referred:
+* [sooftware/conformer](https://github.com/sooftware/conformer), whose conformer implementation is directly used in `ctx_vec2wav/models/conformer`.
+* [ESPnet](https://github.com/espnet/espnet), for some network modules in `ctx_vec2wav/models/conformer`.
+* [ParallelWaveGAN](https://github.com/kan-bayashi/ParallelWaveGAN), whose training and decoding pipeline is adopted.  
+
+### Citation
 ```
 @article{du2023unicats,
   title={UniCATS: A Unified Context-Aware Text-to-Speech Framework with Contextual VQ-Diffusion and Vocoding},
