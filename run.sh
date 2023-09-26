@@ -52,16 +52,8 @@ eval_set="eval_subset"
 # shellcheck disable=SC1091
 . parse_options.sh || exit 1;
 
-# db_root=/mnt/lustre/sjtu/home/cpd30/dataset/tts/LibriTTS
-
-
 set -eo pipefail
 
-if [ "${stage}" -le 1 ] && [ "${stop_stage}" -ge 1 ]; then
-    echo "Stage 1: Prepare Feature"
-    mkdir -p ${featdir}/vqdix
-    cp ../v2w/feats/vqidx/codebook.npy ${featdir}/vqidx
-fi
 vqdir=feats/vqidx/
 
 if [ -z "${tag}" ]; then
@@ -134,5 +126,3 @@ if [ "${stage}" -le 3 ] && [ "${stop_stage}" -ge 3 ]; then
     echo "Successfully finished decoding."
 fi
 echo "Finished."
-
-# decode.py --feats-scp data/eval_subsetB/feats.scp --prompt-scp data/eval_subsetB/prompt.scp --num-frames data/eval_subsetB/utt2num_frames --checkpoint exp/train_all_hifigan.v1.macaron.convffn/checkpoint-660000steps.pkl --outdir exp/train_all_hifigan.v1.macaron.convffn/synthesis/checkpoint-660000steps/wav

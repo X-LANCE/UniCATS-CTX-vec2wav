@@ -1,17 +1,35 @@
-# Implementation of CTX-vec2wav 
+# CTX-vec2wav, the Acoustic Context-Aware Vocoder
 
 > This is the official implementation of CTX-vec2wav vocoder in the paper [UniCATS: A Unified Context-Aware Text-to-Speech Framework with Contextual VQ-Diffusion and Vocoding](https://arxiv.org/abs/2306.07547)
 
 <img width="1187" alt="image-20230926140022539" src="https://github.com/cantabile-kwok/CTX-vec2wav/assets/58417810/036708e0-90a0-4df6-a886-3c1b3ba47e29">
 
+## Environment Setup
 
-### Acknowledgement
-During the development, the following repositories are referred:
+This repo is tested on **python 3.9** on Linux. You can set up the environment with
+```shell
+# Install required packages
+conda create -n ctxv2w python=3.9  # or any name you like
+conda activate ctxv2w
+pip install -r requirements.txt
+
+# Then, set PATH and PYTHONPATH
+source path.sh  # change the env name if you don't use "ctxv2w"
+```
+
+## Inference (Vocoding with acoustic context)
+Working in Progress
+
+## Training
+Working in Progress
+
+## Acknowledgement
+During the development, the following repositories were referred to:
 * [sooftware/conformer](https://github.com/sooftware/conformer), whose conformer implementation is directly used in `ctx_vec2wav/models/conformer`.
 * [ESPnet](https://github.com/espnet/espnet), for some network modules in `ctx_vec2wav/models/conformer`.
 * [ParallelWaveGAN](https://github.com/kan-bayashi/ParallelWaveGAN), whose training and decoding pipeline is adopted.  
 
-### Citation
+## Citation
 ```
 @article{du2023unicats,
   title={UniCATS: A Unified Context-Aware Text-to-Speech Framework with Contextual VQ-Diffusion and Vocoding},
