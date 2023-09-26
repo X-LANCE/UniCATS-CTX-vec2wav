@@ -1,260 +1,247 @@
-# Copyright (c) 2021, Soohwan Kim. All rights reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
+# Copyright 2020 Johns Hopkins University (Shinji Watanabe)
+#                Northwestern Polytechnical University (Pengcheng Guo)
+#  Apache 2.0  (http://www.apache.org/licenses/LICENSE-2.0)
 
+"""Encoder definition."""
+
+import logging
 import torch
-import torch.nn as nn
-from torch import Tensor
-from typing import Tuple
 
-from ctx_vec2wav.models.conformer.feed_forward import FeedForwardModule
-from ctx_vec2wav.models.conformer.attention import MultiHeadedSelfAttentionModule, MultiHeadedPosAgnosticCrossAttentionModule
-from ctx_vec2wav.models.conformer.convolution import (
-    ConformerConvModule,
+from ctx_vec2wav.models.conformer.convolution import ConvolutionModule
+from ctx_vec2wav.models.conformer.decoder_layer import DecoderLayer
+from ctx_vec2wav.models.conformer.nets_utils import get_activation
+from ctx_vec2wav.models.conformer.vgg2l import VGG2L
+from ctx_vec2wav.models.conformer.attention import (
+    MultiHeadedAttention,  # noqa: H301
+    RelPositionMultiHeadedAttention,  # noqa: H301
+    LegacyRelPositionMultiHeadedAttention,  # noqa: H301
 )
-from ctx_vec2wav.models.conformer.modules import (
-    ResidualConnectionModule,
-    ResidualConnectionCrossAttentionModule,
-    ResidualConnectionWithMaskModule,
+from ctx_vec2wav.models.conformer.embedding import (
+    PositionalEncoding,  # noqa: H301
+    ScaledPositionalEncoding,  # noqa: H301
+    RelPositionalEncoding,  # noqa: H301
+    LegacyRelPositionalEncoding,  # noqa: H301
 )
+from ctx_vec2wav.models.conformer.layer_norm import LayerNorm
+from ctx_vec2wav.models.conformer.multi_layer_conv import Conv1dLinear, MultiLayeredConv1d
+from ctx_vec2wav.models.conformer.positionwise_feed_forward import (
+    PositionwiseFeedForward,  # noqa: H301
+)
+from ctx_vec2wav.models.conformer.repeat import repeat
+from ctx_vec2wav.models.conformer.subsampling import Conv2dSubsampling
 
 
-class ConformerDecoderBlock(nn.Module):
-    """
-    Conformer block contains two Feed Forward modules sandwiching the Multi-Headed Self-Attention module
-    and the Convolution module. This sandwich structure is inspired by Macaron-Net, which proposes replacing
-    the original feed-forward layer in the Transformer block into two half-step feed-forward layers,
-    one before the attention layer and one after.
+class Decoder(torch.nn.Module):
+    """Conformer encoder module.
 
     Args:
-        encoder_dim (int, optional): Dimension of conformer encoder
-        num_attention_heads (int, optional): Number of attention heads
-        feed_forward_expansion_factor (int, optional): Expansion factor of feed forward module
-        conv_expansion_factor (int, optional): Expansion factor of conformer convolution module
-        feed_forward_dropout_p (float, optional): Probability of feed forward module dropout
-        attention_dropout_p (float, optional): Probability of attention module dropout
-        conv_dropout_p (float, optional): Probability of conformer convolution module dropout
-        conv_kernel_size (int or tuple, optional): Size of the convolving kernel
-        half_step_residual (bool): Flag indication whether to use half step residual or not
+        idim (int): Input dimension.
+        attention_dim (int): Dimention of attention.
+        attention_heads (int): The number of heads of multi head attention.
+        linear_units (int): The number of units of position-wise feed forward.
+        num_blocks (int): The number of decoder blocks.
+        dropout_rate (float): Dropout rate.
+        positional_dropout_rate (float): Dropout rate after adding positional encoding.
+        attention_dropout_rate (float): Dropout rate in attention.
+        input_layer (Union[str, torch.nn.Module]): Input layer type.
+        normalize_before (bool): Whether to use layer_norm before the first block.
+        concat_after (bool): Whether to concat attention layer's input and output.
+            if True, additional linear will be applied.
+            i.e. x -> x + linear(concat(x, att(x)))
+            if False, no additional linear will be applied. i.e. x -> x + att(x)
+        positionwise_layer_type (str): "linear", "conv1d", or "conv1d-linear".
+        positionwise_conv_kernel_size (int): Kernel size of positionwise conv1d layer.
+        macaron_style (bool): Whether to use macaron style for positionwise layer.
+        pos_enc_layer_type (str): Encoder positional encoding layer type.
+        selfattention_layer_type (str): Encoder attention layer type.
+        activation_type (str): Encoder activation function type.
+        use_cnn_module (bool): Whether to use convolution module.
+        zero_triu (bool): Whether to zero the upper triangular part of attention matrix.
+        cnn_module_kernel (int): Kernerl size of convolution module.
+        padding_idx (int): Padding idx for input_layer=embed.
 
-    Inputs: inputs
-        - **inputs** (batch, time, dim): Tensor containing input vector
-
-    Returns: outputs
-        - **outputs** (batch, time, dim): Tensor produces by conformer block.
     """
 
     def __init__(
-            self,
-            encoder_dim: int = 512,
-            num_attention_heads: int = 8,
-            feed_forward_expansion_factor: int = 4,
-            conv_expansion_factor: int = 2,
-            feed_forward_dropout_p: float = 0.1,
-            attention_dropout_p: float = 0.1,
-            conv_dropout_p: float = 0.1,
-            conv_kernel_size: int = 31,
-            half_step_residual: bool = True,
-            macaron_style: bool = False,  # macaron style means FFN -> self-attn -> cross-attn ->  conv -> FFN.
-            ffn_type: str = "linear",
-            ffn_conv_kernel_size: int = None
+        self,
+        idim,
+        attention_dim=256,
+        attention_heads=4,
+        linear_units=2048,
+        num_blocks=6,
+        dropout_rate=0.1,
+        positional_dropout_rate=0.1,
+        attention_dropout_rate=0.0,
+        input_layer="conv2d",
+        normalize_before=True,
+        concat_after=False,
+        positionwise_layer_type="linear",
+        positionwise_conv_kernel_size=1,
+        macaron_style=False,
+        pos_enc_layer_type="abs_pos",
+        selfattention_layer_type="selfattn",
+        activation_type="swish",
+        use_cnn_module=False,
+        zero_triu=False,
+        cnn_module_kernel=31,
+        padding_idx=-1,
     ):
-        super(ConformerDecoderBlock, self).__init__()
-        if half_step_residual:
-            self.feed_forward_residual_factor = 0.5
-        else:
-            self.feed_forward_residual_factor = 1
+        """Construct an Encoder object."""
+        super(Decoder, self).__init__()
 
-        self.self_attn = ResidualConnectionWithMaskModule(
-            module=MultiHeadedSelfAttentionModule(
-                d_model=encoder_dim,
-                num_heads=num_attention_heads,
-                dropout_p=attention_dropout_p,
+        activation = get_activation(activation_type)
+        if pos_enc_layer_type == "abs_pos":
+            pos_enc_class = PositionalEncoding
+        elif pos_enc_layer_type == "scaled_abs_pos":
+            pos_enc_class = ScaledPositionalEncoding
+        elif pos_enc_layer_type == "rel_pos":
+            assert selfattention_layer_type == "rel_selfattn"
+            pos_enc_class = RelPositionalEncoding
+        elif pos_enc_layer_type == "legacy_rel_pos":
+            pos_enc_class = LegacyRelPositionalEncoding
+            assert selfattention_layer_type == "legacy_rel_selfattn"
+        else:
+            raise ValueError("unknown pos_enc_layer: " + pos_enc_layer_type)
+
+        self.conv_subsampling_factor = 1
+        if input_layer == "linear":
+            self.embed = torch.nn.Sequential(
+                torch.nn.Linear(idim, attention_dim),
+                torch.nn.LayerNorm(attention_dim),
+                torch.nn.Dropout(dropout_rate),
+                pos_enc_class(attention_dim, positional_dropout_rate),
+            )
+        elif input_layer == "conv2d":
+            self.embed = Conv2dSubsampling(
+                idim,
+                attention_dim,
+                dropout_rate,
+                pos_enc_class(attention_dim, positional_dropout_rate),
+            )
+            self.conv_subsampling_factor = 4
+        elif input_layer == "vgg2l":
+            self.embed = VGG2L(idim, attention_dim)
+            self.conv_subsampling_factor = 4
+        elif input_layer == "embed":
+            self.embed = torch.nn.Sequential(
+                torch.nn.Embedding(idim, attention_dim, padding_idx=padding_idx),
+                pos_enc_class(attention_dim, positional_dropout_rate),
+            )
+        elif isinstance(input_layer, torch.nn.Module):
+            self.embed = torch.nn.Sequential(
+                input_layer,
+                pos_enc_class(attention_dim, positional_dropout_rate),
+            )
+        elif input_layer is None:
+            self.embed = torch.nn.Sequential(
+                pos_enc_class(attention_dim, positional_dropout_rate)
+            )
+        else:
+            raise ValueError("unknown input_layer: " + input_layer)
+        self.normalize_before = normalize_before
+
+        # self-attention module definition
+        if selfattention_layer_type == "selfattn":
+            logging.info("encoder self-attention layer type = self-attention")
+            encoder_selfattn_layer = MultiHeadedAttention
+            encoder_selfattn_layer_args = (
+                attention_heads,
+                attention_dim,
+                attention_dropout_rate,
+            )
+        elif selfattention_layer_type == "legacy_rel_selfattn":
+            assert pos_enc_layer_type == "legacy_rel_pos"
+            encoder_selfattn_layer = LegacyRelPositionMultiHeadedAttention
+            encoder_selfattn_layer_args = (
+                attention_heads,
+                attention_dim,
+                attention_dropout_rate,
+            )
+        elif selfattention_layer_type == "rel_selfattn":
+            logging.info("encoder self-attention layer type = relative self-attention")
+            assert pos_enc_layer_type == "rel_pos"
+            encoder_selfattn_layer = RelPositionMultiHeadedAttention
+            encoder_selfattn_layer_args = (
+                attention_heads,
+                attention_dim,
+                attention_dropout_rate,
+                zero_triu,
+            )
+        else:
+            raise ValueError("unknown encoder_attn_layer: " + selfattention_layer_type)
+
+        # feed-forward module definition
+        if positionwise_layer_type == "linear":
+            positionwise_layer = PositionwiseFeedForward
+            positionwise_layer_args = (
+                attention_dim,
+                linear_units,
+                dropout_rate,
+                activation,
+            )
+        elif positionwise_layer_type == "conv1d":
+            positionwise_layer = MultiLayeredConv1d
+            positionwise_layer_args = (
+                attention_dim,
+                linear_units,
+                positionwise_conv_kernel_size,
+                dropout_rate,
+            )
+        elif positionwise_layer_type == "conv1d-linear":
+            positionwise_layer = Conv1dLinear
+            positionwise_layer_args = (
+                attention_dim,
+                linear_units,
+                positionwise_conv_kernel_size,
+                dropout_rate,
+            )
+        else:
+            raise NotImplementedError("Support only linear or conv1d.")
+
+        # convolution module definition
+        convolution_layer = ConvolutionModule
+        convolution_layer_args = (attention_dim, cnn_module_kernel, activation)
+
+        self.decoders = repeat(
+            num_blocks,
+            lambda lnum: DecoderLayer(
+                attention_dim,
+                encoder_selfattn_layer(*encoder_selfattn_layer_args),
+                MultiHeadedAttention(
+                    attention_heads, attention_dim, attention_dropout_rate
+                ),
+                positionwise_layer(*positionwise_layer_args),
+                positionwise_layer(*positionwise_layer_args) if macaron_style else None,
+                convolution_layer(*convolution_layer_args) if use_cnn_module else None,
+                dropout_rate,
+                normalize_before,
+                concat_after,
             ),
         )
-        self.cross_attn = ResidualConnectionCrossAttentionModule(
-            module=MultiHeadedPosAgnosticCrossAttentionModule(
-                d_model=encoder_dim,
-                num_heads=num_attention_heads,
-                dropout_p=attention_dropout_p
-            )
-        )
+        if self.normalize_before:
+            self.after_norm = LayerNorm(attention_dim)
 
-        self.macaron_style = macaron_style
-        self.sequential = [
-            ResidualConnectionModule(
-                    module=ConformerConvModule(
-                        in_channels=encoder_dim,
-                        kernel_size=conv_kernel_size,
-                        expansion_factor=conv_expansion_factor,
-                        dropout_p=conv_dropout_p,
-                    ),
-                ),
-            ResidualConnectionModule(
-                module=FeedForwardModule(
-                    encoder_dim=encoder_dim,
-                    expansion_factor=feed_forward_expansion_factor,
-                    dropout_p=feed_forward_dropout_p,
-                    ffn_type=ffn_type,
-                    conv_kernel_size=ffn_conv_kernel_size
-                ),
-                module_factor=self.feed_forward_residual_factor,
-            ),
-        ]
-        if not self.macaron_style:
-            self.sequential.append(
-                ResidualConnectionModule(
-                    module=FeedForwardModule(
-                        encoder_dim=encoder_dim,
-                        expansion_factor=feed_forward_expansion_factor,
-                        dropout_p=feed_forward_dropout_p,
-                        ffn_type=ffn_type,
-                        conv_kernel_size=ffn_conv_kernel_size
-                    ),
-                    module_factor=self.feed_forward_residual_factor,
-                ),
-            )
-        else:
-            self.macaron_ffn = ResidualConnectionModule(
-                    module=FeedForwardModule(
-                        encoder_dim=encoder_dim,
-                        expansion_factor=feed_forward_expansion_factor,
-                        dropout_p=feed_forward_dropout_p,
-                        ffn_type=ffn_type,
-                        conv_kernel_size=ffn_conv_kernel_size
-                    ),
-                    module_factor=self.feed_forward_residual_factor,
-                )
-        self.sequential.append(nn.LayerNorm(encoder_dim))
-        self.sequential = nn.Sequential(*self.sequential)
-
-    def forward(self, inputs: Tensor, inputs_mask, memory, memory_mask) -> Tensor:
-        if self.macaron_style:
-            x = self.macaron_ffn(inputs)
-        else:
-            x = inputs
-        x = self.self_attn(x, inputs_mask)
-        x = self.cross_attn(x, inputs_mask, memory, memory_mask)
-        x = self.sequential(x)
-        return x
-
-
-class ConformerDecoder(nn.Module):
-    """
-    Conformer encoder first processes the input with a convolution subsampling layer and then
-    with a number of conformer blocks.
-
-    Args:
-        input_dim (int, optional): Dimension of input vector
-        encoder_dim (int, optional): Dimension of conformer encoder
-        num_layers (int, optional): Number of conformer blocks
-        num_attention_heads (int, optional): Number of attention heads
-        feed_forward_expansion_factor (int, optional): Expansion factor of feed forward module
-        conv_expansion_factor (int, optional): Expansion factor of conformer convolution module
-        feed_forward_dropout_p (float, optional): Probability of feed forward module dropout
-        attention_dropout_p (float, optional): Probability of attention module dropout
-        conv_dropout_p (float, optional): Probability of conformer convolution module dropout
-        conv_kernel_size (int or tuple, optional): Size of the convolving kernel
-        half_step_residual (bool): Flag indication whether to use half step residual or not
-
-    Inputs: inputs, input_lengths
-        - **inputs** (batch, time, dim): Tensor containing input vector
-        - **input_lengths** (batch): list of sequence input lengths
-
-    Returns: outputs, output_lengths
-        - **outputs** (batch, out_channels, time): Tensor produces by conformer encoder.
-        - **output_lengths** (batch): list of sequence output lengths
-    """
-
-    def __init__(
-            self,
-            use_input_layer: bool = True,
-            input_dim: int = 80,
-            encoder_dim: int = 512,
-            num_layers: int = 17,
-            num_attention_heads: int = 8,
-            feed_forward_expansion_factor: int = 4,
-            conv_expansion_factor: int = 2,
-            input_dropout_p: float = 0.1,
-            feed_forward_dropout_p: float = 0.1,
-            attention_dropout_p: float = 0.1,
-            conv_dropout_p: float = 0.1,
-            conv_kernel_size: int = 31,
-            half_step_residual: bool = True,
-            macaron_style: bool = True,
-            ffn_type: str = 'linear',
-            ffn_conv_kernel_size: int = None
-    ):
-        super(ConformerDecoder, self).__init__()
-        # self.conv_subsample = Conv2dSubampling(in_channels=1, out_channels=encoder_dim)
-        # self.input_projection = nn.Sequential(
-        #     Linear(encoder_dim * (((input_dim - 1) // 2 - 1) // 2), encoder_dim),
-        #     nn.Dropout(p=input_dropout_p),
-        # )
-        if use_input_layer:
-            self.input_layer = torch.nn.Sequential(
-                torch.nn.Linear(input_dim, encoder_dim),
-                torch.nn.LayerNorm(encoder_dim),
-                torch.nn.Dropout(input_dropout_p),
-            )
-        self.use_input_layer = use_input_layer
-        self.layers = nn.ModuleList([ConformerDecoderBlock(
-            encoder_dim=encoder_dim,
-            num_attention_heads=num_attention_heads,
-            feed_forward_expansion_factor=feed_forward_expansion_factor,
-            conv_expansion_factor=conv_expansion_factor,
-            feed_forward_dropout_p=feed_forward_dropout_p,
-            attention_dropout_p=attention_dropout_p,
-            conv_dropout_p=conv_dropout_p,
-            conv_kernel_size=conv_kernel_size,
-            half_step_residual=half_step_residual,
-            macaron_style=macaron_style,
-            ffn_type=ffn_type,
-            ffn_conv_kernel_size=ffn_conv_kernel_size
-        ) for _ in range(num_layers)])
-
-    def count_parameters(self) -> int:
-        """ Count parameters of encoder """
-        return sum([p.numel() for p in self.parameters()])
-
-    def update_dropout(self, dropout_p: float) -> None:
-        """ Update dropout probability of encoder """
-        for name, child in self.named_children():
-            if isinstance(child, nn.Dropout):
-                child.p = dropout_p
-
-    def forward(self, xs, masks, memory, memory_mask) -> Tuple[Tensor, Tensor]:
-        """
-        Forward propagate a `inputs` for  encoder training.
+    def forward(self, xs, masks, memory, memory_mask):
+        """Encode input sequence.
 
         Args:
-            inputs (torch.FloatTensor): A input sequence passed to encoder. Typically, for inputs this will be a padded
-                `FloatTensor` of size ``(batch, seq_length, dimension)``.
-            input_lengths (torch.LongTensor): The length of input tensor. ``(batch)``
+            xs (torch.Tensor): Input tensor (#batch, time, idim).
+            masks (torch.Tensor): Mask tensor (#batch, time).
 
         Returns:
-            (Tensor, Tensor)
+            torch.Tensor: Output tensor (#batch, time, attention_dim).
+            torch.Tensor: Mask tensor (#batch, time).
 
-            * outputs (torch.FloatTensor): A output sequence of encoder. `FloatTensor` of size
-                ``(batch, seq_length, dimension)``
-            * output_lengths (torch.LongTensor): The length of output tensor. ``(batch)``
         """
-        # outputs, output_lengths = self.conv_subsample(inputs, input_lengths)
-        # outputs = self.input_projection(outputs)
-        if self.use_input_layer:
-            outputs = self.input_layer(xs)
+        if isinstance(self.embed, (Conv2dSubsampling, VGG2L)):
+            xs, masks = self.embed(xs, masks)
         else:
-            outputs = xs
-        for layer in self.layers:
-            outputs = layer(outputs, masks, memory, memory_mask)
-        return outputs, masks
+            xs = self.embed(xs)
+
+        xs, masks, memory, memory_mask = self.decoders(xs, masks, memory, memory_mask)
+        if isinstance(xs, tuple):
+            xs = xs[0]
+
+        if self.normalize_before:
+            xs = self.after_norm(xs)
+        return xs, masks

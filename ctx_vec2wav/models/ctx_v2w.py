@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import torch
-from ctx_vec2wav.models.conformer.decoder import ConformerDecoder
+from ctx_vec2wav.models.conformer.decoder import Decoder as ConformerDecoder
 from ctx_vec2wav.utils import crop_seq
 from ctx_vec2wav.models.hifigan import HiFiGANGenerator
 
@@ -9,41 +9,24 @@ from ctx_vec2wav.models.hifigan import HiFiGANGenerator
 class CTXVEC2WAVFrontend(torch.nn.Module):
 
     def __init__(self,
-                 num_mels: int,
-                 aux_channels: int,
-                 vqvec_channels: int,
-                 prompt_channels: int,
+                 num_mels,
+                 aux_channels,
+                 vqvec_channels,
+                 prompt_channels,
                  conformer_params):
+
         super(CTXVEC2WAVFrontend, self).__init__()
 
-        def _construct_conformer_encoder(use_input_layer: bool, vqvec_channels: int, conformer_params: dict):
-            return ConformerDecoder(
-                use_input_layer=use_input_layer,
-                input_dim=vqvec_channels,
-                encoder_dim=conformer_params['attention_dim'],
-                num_layers=conformer_params['num_blocks'],
-                num_attention_heads=conformer_params['attention_heads'],
-                feed_forward_expansion_factor=conformer_params['feed_forward_expansion_factor'],
-                input_dropout_p=conformer_params['dropout_rate'],
-                feed_forward_dropout_p=conformer_params['positional_dropout_rate'],
-                attention_dropout_p=conformer_params['attention_dropout_rate'],
-                conv_dropout_p=conformer_params['dropout_rate'],
-                conv_kernel_size=conformer_params['cnn_module_kernel'],
-                macaron_style=conformer_params['macaron_style'],
-                ffn_type=conformer_params['positionwise_layer_type'],
-                ffn_conv_kernel_size=conformer_params['positionwise_conv_kernel_size']
-            )
-
-        self.prompt_prenet = torch.nn.Conv1d(prompt_channels, conformer_params["attention_dim"], kernel_size=5)  # , padding=2)
-        self.encoder1 = _construct_conformer_encoder(use_input_layer=True, vqvec_channels=vqvec_channels, conformer_params=conformer_params)
+        self.prompt_prenet = torch.nn.Conv1d(prompt_channels, conformer_params["attention_dim"], kernel_size=5) # , padding=2)
+        self.encoder1 = ConformerDecoder(vqvec_channels, input_layer='linear', **conformer_params)
 
         self.aux_prenet = torch.nn.Conv1d(aux_channels, conformer_params["attention_dim"], kernel_size=5, padding=2)
         self.aux_proj = torch.nn.Linear(conformer_params["attention_dim"], aux_channels)
         self.hidden_proj = torch.nn.Linear(conformer_params["attention_dim"], conformer_params["attention_dim"])
 
-        self.encoder2 = _construct_conformer_encoder(use_input_layer=False, vqvec_channels=vqvec_channels, conformer_params=conformer_params)
+        self.encoder2 = ConformerDecoder(0, input_layer=None, **conformer_params)
         self.mel_proj = torch.nn.Linear(conformer_params["attention_dim"], num_mels)
-
+        
     def forward(self, vqvec, prompt, mask=None, prompt_mask=None, aux=None):
         """
         params:
