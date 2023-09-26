@@ -2,7 +2,8 @@
 
 > This is the official implementation of CTX-vec2wav vocoder in the paper [UniCATS: A Unified Context-Aware Text-to-Speech Framework with Contextual VQ-Diffusion and Vocoding](https://arxiv.org/abs/2306.07547)
 
-<img src="/Users/cantabile/Documents/typora-user-images/readme/image-20230926140022539.png" alt="image-20230926140022539" style="zoom:40%;" />
+<img width="1187" alt="image-20230926140022539" src="https://github.com/cantabile-kwok/CTX-vec2wav/assets/58417810/036708e0-90a0-4df6-a886-3c1b3ba47e29">
+
 
 ```
 @article{du2023unicats,
