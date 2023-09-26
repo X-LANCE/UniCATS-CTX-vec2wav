@@ -16,17 +16,17 @@ import yaml
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 
-from parallel_wavegan.datasets import MelDataset
-from parallel_wavegan.datasets import MelSCPDataset
-from parallel_wavegan.utils import read_hdf5
-from parallel_wavegan.utils import write_hdf5
+from ctx_vec2wav.datasets import MelDataset
+from ctx_vec2wav.datasets import MelSCPDataset
+from ctx_vec2wav.utils import read_hdf5
+from ctx_vec2wav.utils import write_hdf5
 
 
 def main():
     """Run preprocessing process."""
     parser = argparse.ArgumentParser(
         description="Compute mean and variance of dumped raw features "
-        "(See detail in parallel_wavegan/bin/compute_statistics.py)."
+        "(See detail in ctx_vec2wav/bin/compute_statistics.py)."
     )
     parser.add_argument(
         "--feats-scp",

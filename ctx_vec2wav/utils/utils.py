@@ -311,15 +311,15 @@ def load_model(checkpoint, config=None, stats=None):
             config = yaml.load(f, Loader=yaml.Loader)
 
     # lazy load for circular error
-    import parallel_wavegan.models
+    import ctx_vec2wav.models
 
     # get model and load parameters
     model_class = getattr(
-        parallel_wavegan.models,
+        ctx_vec2wav.models,
         config.get("generator_type", "ParallelWaveGANGenerator"),
     )
-    model = parallel_wavegan.models.VQVEC2WAVGenerator(
-        parallel_wavegan.models.VQVEC2WAVFrontend(config["num_mels"], **config["frontend_params"]),
+    model = ctx_vec2wav.models.CTXVEC2WAVGenerator(
+        ctx_vec2wav.models.CTXVEC2WAVFrontend(config["num_mels"], **config["frontend_params"]),
         model_class(**config["generator_params"])
     )
     model.load_state_dict(
@@ -343,7 +343,7 @@ def load_model(checkpoint, config=None, stats=None):
     # add pqmf if needed
     if config["generator_params"]["out_channels"] > 1:
         # lazy load for circular error
-        from parallel_wavegan.layers import PQMF
+        from ctx_vec2wav.layers import PQMF
 
         pqmf_params = {}
         if LooseVersion(config.get("version", "0.1.0")) <= LooseVersion("0.4.2"):
@@ -371,7 +371,7 @@ def download_pretrained_model(tag, download_dir=None):
     assert tag in PRETRAINED_MODEL_LIST, f"{tag} does not exists."
     id_ = PRETRAINED_MODEL_LIST[tag]
     if download_dir is None:
-        download_dir = os.path.expanduser("~/.cache/parallel_wavegan")
+        download_dir = os.path.expanduser("~/.cache/ctx_vec2wav")
     output_path = f"{download_dir}/{tag}.tar.gz"
     os.makedirs(f"{download_dir}", exist_ok=True)
     with FileLock(output_path + ".lock"):

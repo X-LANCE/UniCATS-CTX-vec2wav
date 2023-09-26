@@ -10,9 +10,9 @@
 ###########################################################
 #     VQVEC2WAV FRONTEND NETWORK ARCHITECTURE SETTING     #
 ###########################################################
-frontend_mel_prediction_stop_steps: 200000
-lambda_frontend_mel_prediction: 60
-lambda_aux_prediction: 5
+frontend_mel_prediction_stop_steps: 200000  # after which the frontend mel prediction loss is canceled
+lambda_frontend_mel_prediction: 60  # loss coefficient
+lambda_aux_prediction: 5  # loss coefficient
 frontend_params:
     vqvec_channels: 512
     aux_channels: 3
@@ -20,15 +20,16 @@ frontend_params:
     conformer_params:
         attention_dim: &h_dim 184
         attention_heads: 2
-        linear_units: 1536
+        # linear_units: 1536
+        feed_forward_expansion_factor: 8  # equals to linear_units=1472
         num_blocks: 2
         dropout_rate: 0.2
         positional_dropout_rate: 0.2
         attention_dropout_rate: 0.2
         normalize_before: true
         concat_after: false
-        positionwise_layer_type: conv1d
-        positionwise_conv_kernel_size: 3
+        positionwise_layer_type: conv1d # linear or conv1d
+        positionwise_conv_kernel_size: 3 # if linear, this is dummy
         macaron_style: True
         pos_enc_layer_type: rel_pos
         selfattention_layer_type: rel_selfattn
@@ -45,8 +46,8 @@ generator_params:
     out_channels: 1                       # Number of output channels.
     channels: 512                         # Number of initial channels.
     kernel_size: 7                        # Kernel size of initial and final conv layers.
-    upsample_scales: [8, 5, 2, 2]        # Upsampling scales.
-    upsample_kernel_sizes: [16, 10, 4, 4] # Kernel size for upsampling layers.
+    upsample_scales: [8, 5, 2, 2]        # Upsampling scales. The product of these scales must be equal to the hop size
+    upsample_kernel_sizes: [16, 10, 4, 4] # Kernel size for upsampling layers. Should be 2 times the upsample scales
     resblock_kernel_sizes: [3, 7, 11]     # Kernel size for residual blocks.
     resblock_dilations:                   # Dilations for residual blocks.
         - [1, 3, 5]
@@ -138,7 +139,7 @@ crop_max_frames: 100
 max_num_frames: 2600
 min_num_frames: 500
 pin_memory: true            # Whether to pin memory in Pytorch DataLoader.
-num_workers: 15             # Number of workers in Pytorch DataLoader.
+num_workers: 16             # Number of workers in Pytorch DataLoader.
 allow_cache: false          # Whether to allow cache in dataset. If true, it requires cpu memory.
 
 ###########################################################
@@ -179,7 +180,7 @@ discriminator_grad_norm: -1
 generator_train_start_steps: 1     # Number of steps to start to train discriminator.
 discriminator_train_start_steps: 0 # Number of steps to start to train discriminator.
 train_max_steps: 1000000           # Number of training steps.
-save_interval_steps: 50000         # Interval steps to save checkpoint.
+save_interval_steps: 10000         # Interval steps to save checkpoint.
 eval_interval_steps: 100000         # Interval steps to evaluate the network.
 log_interval_steps: 1000            # Interval steps to record the training log.
 

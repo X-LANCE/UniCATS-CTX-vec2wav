@@ -7,7 +7,7 @@
 
 import torch
 
-from parallel_wavegan.layers import CausalConv1d
+from ctx_vec2wav.layers import CausalConv1d
 
 
 class ResidualStack(torch.nn.Module):

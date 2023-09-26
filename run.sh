@@ -4,7 +4,7 @@
 #  MIT License (https://opensource.org/licenses/MIT)
 
 . ./cmd.sh || exit 1;
-. ./path.sh || exit 1;
+# . ./path.sh || exit 1;
 
 # basic settings
 stage=-1              # stage to start
@@ -18,10 +18,10 @@ nj=16     # number of parallel jobs in feature extraction
 conf=conf/hifigan.v1.yaml
 # conf=conf/multi_band_melgan.v2.yaml
 sampling_rate=16000        # sampling frequency
-fmax=7600       # maximum frequency
-fmin=80         # minimum frequency
+# fmax=7600       # maximum frequency
+# fmin=80         # minimum frequency
 num_mels=80     # number of mel basis
-fft_size=1024   # number of fft points
+# fft_size=1024   # number of fft points
 hop_size=160    # number of shift points
 win_length=465  # window length
 
@@ -46,22 +46,33 @@ checkpoint=   # checkpoint path to be used for decoding
 
 train_set="train_${part}" # name of training data directory
 dev_set="dev_${part}"           # name of development data directory
-eval_set="eval_${part}"         # name of evaluation data directory
+# eval_set="eval_${part}"         # name of evaluation data directory
+eval_set="eval_subset"
 
 # shellcheck disable=SC1091
 . parse_options.sh || exit 1;
 
-db_root=/mnt/lustre/sjtu/home/cpd30/dataset/tts/LibriTTS
+# db_root=/mnt/lustre/sjtu/home/cpd30/dataset/tts/LibriTTS
 
 
 set -eo pipefail
 
+if [ "${stage}" -le 1 ] && [ "${stop_stage}" -ge 1 ]; then
+    echo "Stage 1: Prepare Feature"
+    mkdir -p ${featdir}/vqdix
+    cp ../v2w/feats/vqidx/codebook.npy ${featdir}/vqidx
+fi
 vqdir=feats/vqidx/
 
 if [ -z "${tag}" ]; then
     expdir="exp/${train_set}_$(basename "${conf}" .yaml)"
 else
     expdir="exp/${train_set}_${tag}"
+fi
+
+last_checkpoint="$(ls -dt "${expdir}"/*.pkl | head -1 || true)"
+if [ -z $resume ]; then
+    resume=$last_checkpoint
 fi
 if [ "${stage}" -le 2 ] && [ "${stop_stage}" -ge 2 ]; then
     echo "Stage 2: Network training"
@@ -106,7 +117,7 @@ if [ "${stage}" -le 3 ] && [ "${stop_stage}" -ge 3 ]; then
     outdir="${expdir}/synthesis/$(basename "${checkpoint}" .pkl)"
     for name in "${eval_set}"; do
         [ ! -e "${outdir}/${name}" ] && mkdir -p "${outdir}/${name}"
-        select-feats 5-84 scp:${datadir}/feats.scp ark,scp:${featdir}/normed_fbank/${name}/feats.ark,${featdir}/normed_fbank/${name}/feats.scp
+        python local/select_feats.py 5-84 scp:${datadir}/${name}/feats.scp ark,scp:${featdir}/normed_fbank/${name}/feats.ark,${featdir}/normed_fbank/${name}/feats.scp
         python local/build_prompt_feat.py ${datadir}/${name}/utt2num_frames ${datadir}/${name}/utt2spk ${featdir}/normed_fbank/${name}/feats.scp 300 > ${datadir}/${name}/prompt.scp
         echo "Decoding start. See the progress via ${outdir}/${name}/decode.log."
                 # --prompt-scp ${outdir}/${name}/prompt.scp \
@@ -123,3 +134,5 @@ if [ "${stage}" -le 3 ] && [ "${stop_stage}" -ge 3 ]; then
     echo "Successfully finished decoding."
 fi
 echo "Finished."
+
+# decode.py --feats-scp data/eval_subsetB/feats.scp --prompt-scp data/eval_subsetB/prompt.scp --num-frames data/eval_subsetB/utt2num_frames --checkpoint exp/train_all_hifigan.v1.macaron.convffn/checkpoint-660000steps.pkl --outdir exp/train_all_hifigan.v1.macaron.convffn/synthesis/checkpoint-660000steps/wav

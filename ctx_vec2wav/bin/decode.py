@@ -18,15 +18,15 @@ import yaml
 
 from tqdm import tqdm
 
-from parallel_wavegan.datasets import MelSCPDataset
-from parallel_wavegan.utils import load_model
+from ctx_vec2wav.datasets import MelSCPDataset
+from ctx_vec2wav.utils import load_model
 
 
 def main():
     """Run decoding process."""
     parser = argparse.ArgumentParser(
         description="Decode dumped features with trained Parallel WaveGAN Generator "
-        "(See detail in parallel_wavegan/bin/decode.py)."
+        "(See detail in ctx_vec2wav/bin/decode.py)."
     )
     parser.add_argument(
         "--feats-scp",

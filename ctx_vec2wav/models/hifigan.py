@@ -13,28 +13,28 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from parallel_wavegan.layers import HiFiGANResidualBlock as ResidualBlock
-from parallel_wavegan.utils import read_hdf5
+from ctx_vec2wav.layers import HiFiGANResidualBlock as ResidualBlock
+from ctx_vec2wav.utils import read_hdf5
 
 
 class HiFiGANGenerator(torch.nn.Module):
     """HiFiGAN generator module."""
 
     def __init__(
-        self,
-        in_channels=80,
-        out_channels=1,
-        channels=512,
-        kernel_size=7,
-        upsample_scales=(8, 8, 2, 2),
-        upsample_kernel_sizes=(16, 16, 4, 4),
-        resblock_kernel_sizes=(3, 7, 11),
-        resblock_dilations=[(1, 3, 5), (1, 3, 5), (1, 3, 5)],
-        use_additional_convs=True,
-        bias=True,
-        nonlinear_activation="LeakyReLU",
-        nonlinear_activation_params={"negative_slope": 0.1},
-        use_weight_norm=True,
+            self,
+            in_channels=80,
+            out_channels=1,
+            channels=512,
+            kernel_size=7,
+            upsample_scales=(8, 8, 2, 2),
+            upsample_kernel_sizes=(16, 16, 4, 4),
+            resblock_kernel_sizes=(3, 7, 11),
+            resblock_dilations=[(1, 3, 5), (1, 3, 5), (1, 3, 5)],
+            use_additional_convs=True,
+            bias=True,
+            nonlinear_activation="LeakyReLU",
+            nonlinear_activation_params={"negative_slope": 0.1},
+            use_weight_norm=True,
     ):
         """Initialize HiFiGANGenerator module.
 
@@ -52,7 +52,7 @@ class HiFiGANGenerator(torch.nn.Module):
             nonlinear_activation (str): Activation function module name.
             nonlinear_activation_params (dict): Hyperparameters for activation function.
             use_weight_norm (bool): Whether to use weight norm.
-                If set to true, it will be applied to all of the conv layers.
+                If set to true, it will be applied to all the conv layers.
 
         """
         super().__init__()
@@ -161,7 +161,7 @@ class HiFiGANGenerator(torch.nn.Module):
         self.apply(_reset_parameters)
 
     def remove_weight_norm(self):
-        """Remove weight normalization module from all of the layers."""
+        """Remove weight normalization module from all the layers."""
 
         def _remove_weight_norm(m):
             try:
@@ -173,11 +173,11 @@ class HiFiGANGenerator(torch.nn.Module):
         self.apply(_remove_weight_norm)
 
     def apply_weight_norm(self):
-        """Apply weight normalization module from all of the layers."""
+        """Apply weight normalization module from all the layers."""
 
         def _apply_weight_norm(m):
             if isinstance(m, torch.nn.Conv1d) or isinstance(
-                m, torch.nn.ConvTranspose1d
+                    m, torch.nn.ConvTranspose1d
             ):
                 torch.nn.utils.weight_norm(m)
                 logging.debug(f"Weight norm is applied to {m}.")
@@ -225,19 +225,19 @@ class HiFiGANPeriodDiscriminator(torch.nn.Module):
     """HiFiGAN period discriminator module."""
 
     def __init__(
-        self,
-        in_channels=1,
-        out_channels=1,
-        period=3,
-        kernel_sizes=[5, 3],
-        channels=32,
-        downsample_scales=[3, 3, 3, 3, 1],
-        max_downsample_channels=1024,
-        bias=True,
-        nonlinear_activation="LeakyReLU",
-        nonlinear_activation_params={"negative_slope": 0.1},
-        use_weight_norm=True,
-        use_spectral_norm=False,
+            self,
+            in_channels=1,
+            out_channels=1,
+            period=3,
+            kernel_sizes=[5, 3],
+            channels=32,
+            downsample_scales=[3, 3, 3, 3, 1],
+            max_downsample_channels=1024,
+            bias=True,
+            nonlinear_activation="LeakyReLU",
+            nonlinear_activation_params={"negative_slope": 0.1},
+            use_weight_norm=True,
+            use_spectral_norm=False,
     ):
         """Initialize HiFiGANPeriodDiscriminator module.
 
@@ -254,9 +254,9 @@ class HiFiGANPeriodDiscriminator(torch.nn.Module):
             nonlinear_activation (str): Activation function module name.
             nonlinear_activation_params (dict): Hyperparameters for activation function.
             use_weight_norm (bool): Whether to use weight norm.
-                If set to true, it will be applied to all of the conv layers.
+                If set to true, it will be applied to all the conv layers.
             use_spectral_norm (bool): Whether to use spectral norm.
-                If set to true, it will be applied to all of the conv layers.
+                If set to true, it will be applied to all the conv layers.
 
         """
         super().__init__()
@@ -335,7 +335,7 @@ class HiFiGANPeriodDiscriminator(torch.nn.Module):
         return outs
 
     def apply_weight_norm(self):
-        """Apply weight normalization module from all of the layers."""
+        """Apply weight normalization module from all the layers."""
 
         def _apply_weight_norm(m):
             if isinstance(m, torch.nn.Conv2d):
@@ -345,7 +345,7 @@ class HiFiGANPeriodDiscriminator(torch.nn.Module):
         self.apply(_apply_weight_norm)
 
     def apply_spectral_norm(self):
-        """Apply spectral normalization module from all of the layers."""
+        """Apply spectral normalization module from all the layers."""
 
         def _apply_spectral_norm(m):
             if isinstance(m, torch.nn.Conv2d):
@@ -359,21 +359,21 @@ class HiFiGANMultiPeriodDiscriminator(torch.nn.Module):
     """HiFiGAN multi-period discriminator module."""
 
     def __init__(
-        self,
-        periods=[2, 3, 5, 7, 11],
-        discriminator_params={
-            "in_channels": 1,
-            "out_channels": 1,
-            "kernel_sizes": [5, 3],
-            "channels": 32,
-            "downsample_scales": [3, 3, 3, 3, 1],
-            "max_downsample_channels": 1024,
-            "bias": True,
-            "nonlinear_activation": "LeakyReLU",
-            "nonlinear_activation_params": {"negative_slope": 0.1},
-            "use_weight_norm": True,
-            "use_spectral_norm": False,
-        },
+            self,
+            periods=[2, 3, 5, 7, 11],
+            discriminator_params={
+                "in_channels": 1,
+                "out_channels": 1,
+                "kernel_sizes": [5, 3],
+                "channels": 32,
+                "downsample_scales": [3, 3, 3, 3, 1],
+                "max_downsample_channels": 1024,
+                "bias": True,
+                "nonlinear_activation": "LeakyReLU",
+                "nonlinear_activation_params": {"negative_slope": 0.1},
+                "use_weight_norm": True,
+                "use_spectral_norm": False,
+            },
     ):
         """Initialize HiFiGANMultiPeriodDiscriminator module.
 
@@ -411,19 +411,19 @@ class HiFiGANScaleDiscriminator(torch.nn.Module):
     """HiFi-GAN scale discriminator module."""
 
     def __init__(
-        self,
-        in_channels=1,
-        out_channels=1,
-        kernel_sizes=[15, 41, 5, 3],
-        channels=128,
-        max_downsample_channels=1024,
-        max_groups=16,
-        bias=True,
-        downsample_scales=[2, 2, 4, 4, 1],
-        nonlinear_activation="LeakyReLU",
-        nonlinear_activation_params={"negative_slope": 0.1},
-        use_weight_norm=True,
-        use_spectral_norm=False,
+            self,
+            in_channels=1,
+            out_channels=1,
+            kernel_sizes=[15, 41, 5, 3],
+            channels=128,
+            max_downsample_channels=1024,
+            max_groups=16,
+            bias=True,
+            downsample_scales=[2, 2, 4, 4, 1],
+            nonlinear_activation="LeakyReLU",
+            nonlinear_activation_params={"negative_slope": 0.1},
+            use_weight_norm=True,
+            use_spectral_norm=False,
     ):
         """Initilize HiFiGAN scale discriminator module.
 
@@ -439,9 +439,9 @@ class HiFiGANScaleDiscriminator(torch.nn.Module):
             nonlinear_activation (str): Activation function module name.
             nonlinear_activation_params (dict): Hyperparameters for activation function.
             use_weight_norm (bool): Whether to use weight norm.
-                If set to true, it will be applied to all of the conv layers.
+                If set to true, it will be applied to all the conv layers.
             use_spectral_norm (bool): Whether to use spectral norm.
-                If set to true, it will be applied to all of the conv layers.
+                If set to true, it will be applied to all the conv layers.
 
         """
         super().__init__()
@@ -550,7 +550,7 @@ class HiFiGANScaleDiscriminator(torch.nn.Module):
         return outs
 
     def apply_weight_norm(self):
-        """Apply weight normalization module from all of the layers."""
+        """Apply weight normalization module from all the layers."""
 
         def _apply_weight_norm(m):
             if isinstance(m, torch.nn.Conv2d):
@@ -560,7 +560,7 @@ class HiFiGANScaleDiscriminator(torch.nn.Module):
         self.apply(_apply_weight_norm)
 
     def apply_spectral_norm(self):
-        """Apply spectral normalization module from all of the layers."""
+        """Apply spectral normalization module from all the layers."""
 
         def _apply_spectral_norm(m):
             if isinstance(m, torch.nn.Conv2d):
@@ -574,28 +574,28 @@ class HiFiGANMultiScaleDiscriminator(torch.nn.Module):
     """HiFi-GAN multi-scale discriminator module."""
 
     def __init__(
-        self,
-        scales=3,
-        downsample_pooling="AvgPool1d",
-        # follow the official implementation setting
-        downsample_pooling_params={
-            "kernel_size": 4,
-            "stride": 2,
-            "padding": 2,
-        },
-        discriminator_params={
-            "in_channels": 1,
-            "out_channels": 1,
-            "kernel_sizes": [15, 41, 5, 3],
-            "channels": 128,
-            "max_downsample_channels": 1024,
-            "max_groups": 16,
-            "bias": True,
-            "downsample_scales": [2, 2, 4, 4, 1],
-            "nonlinear_activation": "LeakyReLU",
-            "nonlinear_activation_params": {"negative_slope": 0.1},
-        },
-        follow_official_norm=False,
+            self,
+            scales=3,
+            downsample_pooling="AvgPool1d",
+            # follow the official implementation setting
+            downsample_pooling_params={
+                "kernel_size": 4,
+                "stride": 2,
+                "padding": 2,
+            },
+            discriminator_params={
+                "in_channels": 1,
+                "out_channels": 1,
+                "kernel_sizes": [15, 41, 5, 3],
+                "channels": 128,
+                "max_downsample_channels": 1024,
+                "max_groups": 16,
+                "bias": True,
+                "downsample_scales": [2, 2, 4, 4, 1],
+                "nonlinear_activation": "LeakyReLU",
+                "nonlinear_activation_params": {"negative_slope": 0.1},
+            },
+            follow_official_norm=False,
     ):
         """Initilize HiFiGAN multi-scale discriminator module.
 
@@ -649,45 +649,45 @@ class HiFiGANMultiScaleMultiPeriodDiscriminator(torch.nn.Module):
     """HiFi-GAN multi-scale + multi-period discriminator module."""
 
     def __init__(
-        self,
-        # Multi-scale discriminator related
-        scales=3,
-        scale_downsample_pooling="AvgPool1d",
-        scale_downsample_pooling_params={
-            "kernel_size": 4,
-            "stride": 2,
-            "padding": 2,
-        },
-        scale_discriminator_params={
-            "in_channels": 1,
-            "out_channels": 1,
-            "kernel_sizes": [15, 41, 5, 3],
-            "channels": 128,
-            "max_downsample_channels": 1024,
-            "max_groups": 16,
-            "bias": True,
-            "downsample_scales": [2, 2, 4, 4, 1],
-            "nonlinear_activation": "LeakyReLU",
-            "nonlinear_activation_params": {"negative_slope": 0.1},
-        },
-        follow_official_norm=True,
-        # Multi-period discriminator related
-        periods=[2, 3, 5, 7, 11],
-        period_discriminator_params={
-            "in_channels": 1,
-            "out_channels": 1,
-            "kernel_sizes": [5, 3],
-            "channels": 32,
-            "downsample_scales": [3, 3, 3, 3, 1],
-            "max_downsample_channels": 1024,
-            "bias": True,
-            "nonlinear_activation": "LeakyReLU",
-            "nonlinear_activation_params": {"negative_slope": 0.1},
-            "use_weight_norm": True,
-            "use_spectral_norm": False,
-        },
+            self,
+            # Multi-scale discriminator related
+            scales=3,
+            scale_downsample_pooling="AvgPool1d",
+            scale_downsample_pooling_params={
+                "kernel_size": 4,
+                "stride": 2,
+                "padding": 2,
+            },
+            scale_discriminator_params={
+                "in_channels": 1,
+                "out_channels": 1,
+                "kernel_sizes": [15, 41, 5, 3],
+                "channels": 128,
+                "max_downsample_channels": 1024,
+                "max_groups": 16,
+                "bias": True,
+                "downsample_scales": [2, 2, 4, 4, 1],
+                "nonlinear_activation": "LeakyReLU",
+                "nonlinear_activation_params": {"negative_slope": 0.1},
+            },
+            follow_official_norm=True,
+            # Multi-period discriminator related
+            periods=[2, 3, 5, 7, 11],
+            period_discriminator_params={
+                "in_channels": 1,
+                "out_channels": 1,
+                "kernel_sizes": [5, 3],
+                "channels": 32,
+                "downsample_scales": [3, 3, 3, 3, 1],
+                "max_downsample_channels": 1024,
+                "bias": True,
+                "nonlinear_activation": "LeakyReLU",
+                "nonlinear_activation_params": {"negative_slope": 0.1},
+                "use_weight_norm": True,
+                "use_spectral_norm": False,
+            },
     ):
-        """Initilize HiFiGAN multi-scale + multi-period discriminator module.
+        """Initilize HiFiGAN multiscale + multi-period discriminator module.
 
         Args:
             scales (int): Number of multi-scales.
@@ -724,7 +724,7 @@ class HiFiGANMultiScaleMultiPeriodDiscriminator(torch.nn.Module):
         Returns:
             List: List of list of each discriminator outputs,
                 which consists of each layer output tensors.
-                Multi scale and multi period ones are concatenated.
+                Multiscale and multi period ones are concatenated.
 
         """
         msd_outs = self.msd(x)

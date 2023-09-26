@@ -6,6 +6,7 @@
 """Dataset modules based on kaldi-style scp files."""
 
 import logging
+import random
 
 from multiprocessing import Manager
 
@@ -13,9 +14,9 @@ import kaldiio
 import numpy as np
 
 from torch.utils.data import Dataset
-
-from parallel_wavegan.utils import HDF5ScpLoader
-from parallel_wavegan.utils import NpyScpLoader
+from tqdm import tqdm
+from ctx_vec2wav.utils import HDF5ScpLoader
+from ctx_vec2wav.utils import NpyScpLoader
 
 
 def _get_feats_scp_loader(feats_scp):
@@ -71,7 +72,7 @@ class AudioMelSCPDataset(Dataset):
             min_num_frames (int): Threshold to remove short feature files.
             max_num_frames (int): Threshold to remove long feature files.
             return_utt_id (bool): Whether to return utterance id.
-            return_sampling_rate (bool): Wheter to return sampling rate.
+            return_sampling_rate (bool): Whether to return sampling rate.
             allow_cache (bool): Whether to allow cache of the loaded files.
 
         """
@@ -113,15 +114,6 @@ class AudioMelSCPDataset(Dataset):
         else:
             self.batches = [[utt_id] for utt_id in self.utt_ids]
 
-#        if (utt2spk and xvector_scp) is not None:
-#            with open(utt2spk, 'r') as f:
-#                self.utt2spk_loader = dict([(x.split()[0], x.split()[1]) for x in f.readlines()])
-#            self.spk2xvector = {}
-#            for k, v in _get_feats_scp_loader(xvector_scp).items():
-#                self.spk2xvector[k] = v
-#        else:
-#            self.utt2spk_loader = None
-
         if allow_cache:
             # NOTE(kan-bayashi): Manager is need to share memory in dataloader with num_workers > 0
             self.manager = Manager()
@@ -134,7 +126,7 @@ class AudioMelSCPDataset(Dataset):
         batches = []
         batch = []
         accum_num_frames = 0
-        for utt_id, mel_length in sorted(list(utt2num_frames_loader.items()), key=lambda x: x[1], reverse=True):
+        for utt_id, mel_length in tqdm(sorted(list(utt2num_frames_loader.items()), key=lambda x: x[1], reverse=True)):
             if utt_id not in self.utt_ids:
                 continue
             if (batch_frames is not None and accum_num_frames + mel_length > batch_frames and len(batch) > min_batch_size) or (batch_size is not None and len(batch) == batch_size):
@@ -184,20 +176,14 @@ class AudioMelSCPDataset(Dataset):
                 if self.allow_cache:
                     self.caches[utt_id] = items
 
-#            if self.utt2spk_loader is not None:
-#                xvector = self.spk2xvector[self.utt2spk_loader[utt_id]]
-#                batch_items.append((*items, xvector))
-#            else:
             batch_items.append(items)
 
         return batch_items
 
     def __len__(self):
         """Return dataset length.
-
         Returns:
             int: The length of dataset.
-
         """
         return len(self.batches)
 
@@ -219,11 +205,11 @@ class MelSCPDataset(Dataset):
 
         Args:
             feats_scp (str): Kaldi-style fests.scp file.
+            prompt_scp (str): Kaldi-style scp file. In this file, every utt is associated with its prompt's mel-spectrogram.
             min_num_frames (int): Threshold to remove short feature files.
             max_num_frames (int): Threshold to remove long feature files.
             return_utt_id (bool): Whether to return utterance id.
             allow_cache (bool): Whether to allow cache of the loaded files.
-
         """
         # load scp as lazy dict
         mel_loader = _get_feats_scp_loader(feats_scp)
@@ -251,15 +237,6 @@ class MelSCPDataset(Dataset):
                     f"({len(mel_keys)} -> {len(idxs)})."
                 )
             mel_keys = [mel_keys[idx] for idx in idxs]
-
-#        if (utt2spk and xvector_scp) is not None:
-#            with open(utt2spk, 'r') as f:
-#                self.utt2spk_loader = dict([(x.split()[0], x.split()[1]) for x in f.readlines()])
-#            self.spk2xvector = {}
-#            for k, v in _get_feats_scp_loader(xvector_scp).items():
-#                self.spk2xvector[k] = v
-#        else:
-#            self.utt2spk_loader = None
 
         self.mel_loader = mel_loader
         self.prompt_loader = prompt_loader
@@ -289,7 +266,7 @@ class MelSCPDataset(Dataset):
 
         utt_id = self.utt_ids[idx]
         mel = self.mel_loader[utt_id]
-        prompt = self.prompt_loader[utt_id]
+        prompt = self.prompt_loader[utt_id].copy()
 
         if self.return_utt_id:
             items = utt_id, mel, prompt
@@ -298,10 +275,6 @@ class MelSCPDataset(Dataset):
 
         if self.allow_cache:
             self.caches[idx] = items
-
-#        if self.utt2spk_loader is not None:
-#            xvector = self.spk2xvector[self.utt2spk_loader[utt_id]]
-#            items = (*items, xvector)
 
         return items
 

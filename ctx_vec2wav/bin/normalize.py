@@ -16,18 +16,18 @@ import yaml
 from sklearn.preprocessing import StandardScaler
 from tqdm import tqdm
 
-from parallel_wavegan.datasets import AudioMelDataset
-from parallel_wavegan.datasets import AudioMelSCPDataset
-from parallel_wavegan.datasets import MelDataset
-from parallel_wavegan.datasets import MelSCPDataset
-from parallel_wavegan.utils import read_hdf5
-from parallel_wavegan.utils import write_hdf5
+from ctx_vec2wav.datasets import AudioMelDataset
+from ctx_vec2wav.datasets import AudioMelSCPDataset
+from ctx_vec2wav.datasets import MelDataset
+from ctx_vec2wav.datasets import MelSCPDataset
+from ctx_vec2wav.utils import read_hdf5
+from ctx_vec2wav.utils import write_hdf5
 
 
 def main():
     """Run preprocessing process."""
     parser = argparse.ArgumentParser(
-        description="Normalize dumped raw features (See detail in parallel_wavegan/bin/normalize.py)."
+        description="Normalize dumped raw features (See detail in ctx_vec2wav/bin/normalize.py)."
     )
     parser.add_argument(
         "--rootdir",

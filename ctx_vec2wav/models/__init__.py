@@ -1,3 +1,3 @@
 from .hifigan import *  # NOQA
 from .melgan import *  # NOQA
-from .vqvec2wav import *
+from .ctx_v2w import *

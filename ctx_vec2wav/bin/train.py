@@ -25,20 +25,20 @@ from tensorboardX import SummaryWriter
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-import parallel_wavegan
-import parallel_wavegan.models
-import parallel_wavegan.optimizers
+import ctx_vec2wav
+import ctx_vec2wav.models
+import ctx_vec2wav.optimizers
 
-from parallel_wavegan.datasets import AudioMelSCPDataset
-from parallel_wavegan.layers import PQMF
-from parallel_wavegan.losses import DiscriminatorAdversarialLoss
-from parallel_wavegan.losses import FeatureMatchLoss
-from parallel_wavegan.losses import GeneratorAdversarialLoss
-from parallel_wavegan.losses import MelSpectrogramLoss
-from parallel_wavegan.losses import MultiResolutionSTFTLoss
-from parallel_wavegan.utils import crop_seq
+from ctx_vec2wav.datasets import AudioMelSCPDataset
+from ctx_vec2wav.layers import PQMF
+from ctx_vec2wav.losses import DiscriminatorAdversarialLoss
+from ctx_vec2wav.losses import FeatureMatchLoss
+from ctx_vec2wav.losses import GeneratorAdversarialLoss
+from ctx_vec2wav.losses import MelSpectrogramLoss
+from ctx_vec2wav.losses import MultiResolutionSTFTLoss
+from ctx_vec2wav.utils import crop_seq
 
-from espnet.nets.pytorch_backend.nets_utils import pad_list, make_non_pad_mask
+from ctx_vec2wav.utils.espnet_utils import pad_list, make_non_pad_mask
 
 # set to avoid matplotlib error in CLI environment
 matplotlib.use("Agg")
@@ -48,28 +48,28 @@ class Trainer(object):
     """Customized trainer module for Parallel WaveGAN training."""
 
     def __init__(
-        self,
-        steps,
-        epochs,
-        data_loader,
-        sampler,
-        model,
-        criterion,
-        optimizer,
-        scheduler,
-        config,
-        device=torch.device("cpu"),
+            self,
+            steps,
+            epochs,
+            data_loader,
+            sampler,
+            model,
+            criterion,
+            optimizer,
+            scheduler,
+            config,
+            device=torch.device("cpu"),
     ):
         """Initialize trainer.
 
         Args:
             steps (int): Initial global steps.
             epochs (int): Initial global epochs.
-            data_loader (dict): Dict of data loaders. It must contrain "train" and "dev" loaders.
-            model (dict): Dict of models. It must contrain "generator" and "discriminator" models.
-            criterion (dict): Dict of criterions. It must contrain "stft" and "mse" criterions.
-            optimizer (dict): Dict of optimizers. It must contrain "generator" and "discriminator" optimizers.
-            scheduler (dict): Dict of schedulers. It must contrain "generator" and "discriminator" schedulers.
+            data_loader (dict): Dict of data loaders. It must contain "train" and "dev" loaders.
+            model (dict): Dict of models. It must contain "generator" and "discriminator" models.
+            criterion (dict): Dict of criteria. It must contain "stft" and "mse" criteria.
+            optimizer (dict): Dict of optimizers. It must contain "generator" and "discriminator" optimizers.
+            scheduler (dict): Dict of schedulers. It must contain "generator" and "discriminator" schedulers.
             config (dict): Config dict loaded from yaml format configuration file.
             device (torch.deive): Pytorch device instance.
 
@@ -93,8 +93,8 @@ class Trainer(object):
         feat_codebook_path = self.config["vq_codebook"]
         self.feat_codebook = torch.tensor(np.load(feat_codebook_path, allow_pickle=True)).to(device)  # (2, 320, 256)
         self.feat_codebook_numgroups = self.feat_codebook.shape[0]
-        self.feat_codebook = torch.nn.ModuleList([torch.nn.Embedding.from_pretrained(self.feat_codebook[i], freeze=True) for i in range(self.feat_codebook_numgroups)]).to(device)
-
+        self.feat_codebook = torch.nn.ModuleList(
+            [torch.nn.Embedding.from_pretrained(self.feat_codebook[i], freeze=True) for i in range(self.feat_codebook_numgroups)]).to(device)
 
     def run(self):
         """Run training."""
@@ -183,26 +183,6 @@ class Trainer(object):
                 state_dict["scheduler"]["discriminator"]
             )
 
-#    def parse_compact_feature(self, x):
-#        """
-#        Args:
-#            x (torch.Tensor): The output of the collater. The shape is (B, L, 5).
-#                
-#        """
-#        ppe_channels = self.config["frontend_params"]["ppe_channels"]
-#
-#        # slice pitch and energy
-#        ppe = x[:,:,:ppe_channels]  # (B, L, 3)
-#
-#        # slice vq idxs, then convert to vectors
-#        vqidx = x[:, :, ppe_channels: ppe_channels + self.feat_codebook_numgroups].long()  # (B, L, 2)
-#        vqvec = torch.cat([self.feat_codebook[i](vqidx[:, :, i]) for i in range(self.feat_codebook_numgroups)], dim=-1)  # (B, L, 512)
-#
-#        # slice mel spectrogram
-#        mel = x[:, :, ppe_channels + self.feat_codebook_numgroups:]  # (B, L, 80)
-#
-#        return [ppe, vqvec], mel
-
     def _train_step(self, batch):
         """Train model one step."""
         # parse batch
@@ -215,8 +195,8 @@ class Trainer(object):
         y = y.unsqueeze(-2).to(self.device)  # (B, 1, T)
 
         # build mask
-        mask = make_non_pad_mask(xlens).to(self.device)   # (B, L)
-        prompt_mask = make_non_pad_mask([l-4 for l in prompt_lens]).to(self.device)   # (B, L_prompt)
+        mask = make_non_pad_mask(xlens).to(self.device)  # (B, L)
+        prompt_mask = make_non_pad_mask([l - 4 for l in prompt_lens]).to(self.device)  # (B, L_prompt)
 
         # crop wav sequence
         crop_xlen = min(self.config["crop_max_frames"], min(xlens))
@@ -395,8 +375,8 @@ class Trainer(object):
         y = y.unsqueeze(-2).to(self.device)  # (B, 1, T)
 
         # build mask
-        mask = make_non_pad_mask(xlens).to(self.device)   # (B, L)
-        prompt_mask = make_non_pad_mask([l-4 for l in prompt_lens]).to(self.device)   # (B, L_prompt)
+        mask = make_non_pad_mask(xlens).to(self.device)  # (B, L)
+        prompt_mask = make_non_pad_mask([l - 4 for l in prompt_lens]).to(self.device)  # (B, L_prompt)
 
         #######################
         #      Generator      #
@@ -464,7 +444,7 @@ class Trainer(object):
             fm_loss = self.criterion["feat_match"](p_, p)
             self.total_eval_loss["eval/feature_matching_loss"] += fm_loss.item()
             gen_loss += (
-                self.config["lambda_adv"] * self.config["lambda_feat_match"] * fm_loss
+                    self.config["lambda_adv"] * self.config["lambda_feat_match"] * fm_loss
             )
 
         #######################
@@ -493,7 +473,7 @@ class Trainer(object):
 
         # calculate loss for each batch
         for eval_steps_per_epoch, batch in enumerate(
-            tqdm(self.data_loader["dev"], desc="[eval]"), 1
+                tqdm(self.data_loader["dev"], desc="[eval]"), 1
         ):
             # eval one step
             self._eval_step(batch)
@@ -613,28 +593,39 @@ class Trainer(object):
             self.finish_train = True
 
 
-class Collater(object):
-    """Customized collater for Pytorch DataLoader in training."""
+class Collator(object):
+    """Customized collator for Pytorch DataLoader in training."""
 
     def __init__(
-        self,
-        hop_size=256,
-        win_length=1024,
+            self,
+            hop_size=256,
+            win_length=1024,
+            sampling_rate=16000,
+            n_mel=80
     ):
-        """Initialize customized collater for PyTorch DataLoader.
+        """Initialize customized collator for PyTorch DataLoader.
 
         Args:
-            hop_size (int): Hop size of auxiliary features.
-
+            hop_size (int): Hop size of features, in sampling points.
+            win_length (int): window length of features.
+            sampling_rate (int): sampling rate of waveform data
+            n_mel (int): number of mel spectrogram dimensions
         """
         self.hop_size = hop_size
         self.win_length = win_length
+        self.sampling_rate = sampling_rate
+        self.n_mel = n_mel
 
     def __call__(self, batch):
         """Convert into batch tensors.
 
         Args:
             batch (list): list of tuple of the pair of audio and features.
+
+        This collator will automatically determine the prompt segment (acoustic context) for each utterance.
+        The prompt is cut off from the current utterance, ranging from 2 to 3 seconds.
+        The starting point of the prompt lies between the first 0-1 second range.
+        Then, it parses the concatenated features into (3 dim auxiliary features, 2 dim VQ features, and 80 dim mel spectrograms)
 
         Returns:
             Tensor: Gaussian noise batch (B, 1, T).
@@ -649,21 +640,26 @@ class Collater(object):
         batch = [
             self._adjust_length(*b) for b in batch
         ]
-        ys, cs = [b[0] for b in batch], [b[1] for b in batch]
+        ys, cs = [b[0] for b in batch], [b[1] for b in batch]  # cs is the concatenated features (aux, vq, mel)
 
         batch_size = len(cs)
 
         # crop prompt feature
-        prompt_offsets = [random.randint(0, 100) for i in range(batch_size)]
-        prompt_lengths = [random.randint(200, 300) for i in range(batch_size)]
+        offset_max_index = int(1 * self.sampling_rate / self.hop_size)  # the latest frames that the prompt can start. Equals to 1s.
+        prompt_offsets = [random.randint(0, offset_max_index) for i in range(batch_size)]
+
+        offset_min_length = int(2 * self.sampling_rate / self.hop_size)  # the shortest prompt length. Equals to 2s.
+        offset_max_length = int(3 * self.sampling_rate / self.hop_size)  # the longest prompt length. Equals to 3s.
+        prompt_lengths = [random.randint(offset_min_length, offset_max_length) for i in range(batch_size)]
+
         c_lengths = []
-        prompt = torch.zeros(batch_size, max(prompt_lengths), 80)
+        prompt = torch.zeros(batch_size, max(prompt_lengths), self.n_mel)
         for i in range(batch_size):
             data_offset = prompt_offsets[i] + prompt_lengths[i]
-            prompt[i, :prompt_lengths[i]] = torch.tensor(cs[i][prompt_offsets[i]:data_offset, -80:])
+            prompt[i, :prompt_lengths[i]] = torch.tensor(cs[i][prompt_offsets[i]:data_offset, -self.n_mel:])
             c_lengths.append(len(cs[i]) - data_offset)
             cs[i] = cs[i][data_offset:]
-            ys[i] = ys[i][data_offset*self.hop_size:]
+            ys[i] = ys[i][data_offset * self.hop_size:]
 
         cs = pad_list([torch.tensor(c) for c in cs], pad_value=0)  # (B, L, 85)
         ys = pad_list([torch.tensor(y, dtype=torch.float) for y in ys], pad_value=0)[:, :cs.size(1) * self.hop_size]  # (B, T)
@@ -673,7 +669,7 @@ class Collater(object):
         vqidx = cs[:, :, 3: 5].long()  # (B, L, 2)
 
         # slice mel spectrogram
-        mel = cs[:, :, -80:]  # (B, L, 80)
+        mel = cs[:, :, -self.n_mel:]  # (B, L, 80)
 
         return vqidx, aux, mel, prompt, ys, c_lengths, prompt_lengths
 
@@ -687,19 +683,19 @@ class Collater(object):
 
         """
         if len(x) > len(c) * self.hop_size:
-            x = x[(self.win_length-self.hop_size) // 2:]
-            x = x[:len(c)*self.hop_size]
+            x = x[(self.win_length - self.hop_size) // 2:]
+            x = x[:len(c) * self.hop_size]
 
         # check the legnth is valid
         assert len(x) == len(c) * self.hop_size
 
-        return (x, c, *args)
+        return x, c, *args
 
 
 def main():
     """Run training process."""
     parser = argparse.ArgumentParser(
-        description="Train Parallel WaveGAN (See detail in parallel_wavegan/bin/train.py)."
+        description="Train Parallel WaveGAN (See detail in ctx_vec2wav/bin/train.py)."
     )
     parser.add_argument(
         "--train-wav-scp",
@@ -720,20 +716,20 @@ def main():
         help="kaldi-style segments file for training.",
     )
     parser.add_argument(
-        "--train-utt2spk", 
-        default=None, 
+        "--train-utt2spk",
+        default=None,
         type=str,
         help="kaldi-style utt2spk file for training.",
     )
     parser.add_argument(
-        "--train-xvector-scp", 
-        default=None, 
+        "--train-xvector-scp",
+        default=None,
         type=str,
         help="kaldi-style xvector.scp file for training.",
     )
     parser.add_argument(
-        "--train-num-frames", 
-        default=None, 
+        "--train-num-frames",
+        default=None,
         type=str,
         help="kaldi-style utt2num_frames file for training.",
     )
@@ -756,20 +752,20 @@ def main():
         help="kaldi-style segments file for validation.",
     )
     parser.add_argument(
-        "--dev-utt2spk", 
-        default=None, 
+        "--dev-utt2spk",
+        default=None,
         type=str,
         help="kaldi-style utt2spk file for deving.",
     )
     parser.add_argument(
-        "--dev-xvector-scp", 
-        default=None, 
+        "--dev-xvector-scp",
+        default=None,
         type=str,
         help="kaldi-style xvector.scp file for validation.",
     )
     parser.add_argument(
-        "--dev-num-frames", 
-        default=None, 
+        "--dev-num-frames",
+        default=None,
         type=str,
         help="kaldi-style utt2num_frames file for validation.",
     )
@@ -873,7 +869,8 @@ def main():
     # init process group
     if args.distributed:
         logging.info("Synchronizing between all workers.")
-        torch.distributed.init_process_group(backend="nccl", init_method="file://%s" % args.distributed_init, world_size=args.world_size, rank=args.rank)
+        torch.distributed.init_process_group(backend="nccl", init_method="file://%s" % args.distributed_init, world_size=args.world_size,
+                                             rank=args.rank)
         logging.info("Finished init process group.")
     else:
         logging.info("Training on a single GPU.")
@@ -882,7 +879,7 @@ def main():
     with open(args.config) as f:
         config = yaml.load(f, Loader=yaml.Loader)
     config.update(vars(args))
-    config["version"] = parallel_wavegan.__version__  # add version info
+    config["version"] = ctx_vec2wav.__version__  # add version info
     with open(os.path.join(args.outdir, "config.yml"), "w") as f:
         yaml.dump(config, f, Dumper=yaml.Dumper)
     for key, value in config.items():
@@ -917,9 +914,11 @@ def main():
     }
 
     # get data loader
-    collater = Collater(
+    collator = Collator(
         hop_size=config["hop_size"],
         win_length=config["win_length"],
+        sampling_rate=config["sampling_rate"],
+        n_mel=config["num_mels"]
     )
     sampler = {"train": None, "dev": None}
     if args.distributed:
@@ -942,7 +941,7 @@ def main():
         "train": DataLoader(
             dataset=dataset["train"],
             shuffle=False if args.distributed else True,
-            collate_fn=collater,
+            collate_fn=collator,
             num_workers=config["num_workers"],
             sampler=sampler["train"],
             pin_memory=config["pin_memory"],
@@ -950,7 +949,7 @@ def main():
         "dev": DataLoader(
             dataset=dataset["dev"],
             shuffle=False if args.distributed else True,
-            collate_fn=collater,
+            collate_fn=collator,
             num_workers=config["num_workers"],
             sampler=sampler["dev"],
             pin_memory=config["pin_memory"],
@@ -959,18 +958,18 @@ def main():
 
     # define models
     generator_class = getattr(
-        parallel_wavegan.models,
+        ctx_vec2wav.models,
         # keep compatibility
         config.get("generator_type", "ParallelWaveGANGenerator"),
     )
     discriminator_class = getattr(
-        parallel_wavegan.models,
+        ctx_vec2wav.models,
         # keep compatibility
         config.get("discriminator_type", "ParallelWaveGANDiscriminator"),
     )
     model = {
-        "generator": parallel_wavegan.models.VQVEC2WAVGenerator(
-            parallel_wavegan.models.VQVEC2WAVFrontend(config["num_mels"], **config["frontend_params"]),
+        "generator": ctx_vec2wav.models.CTXVEC2WAVGenerator(
+            ctx_vec2wav.models.CTXVEC2WAVFrontend(config["num_mels"], **config["frontend_params"]),
             generator_class(**config["generator_params"])
         ).to(device),
         "discriminator": discriminator_class(
@@ -978,7 +977,7 @@ def main():
         ).to(device),
     }
 
-    # define criterions
+    # define criteria
     criterion = {
         "gen_adv": GeneratorAdversarialLoss(
             # keep compatibility
@@ -1037,12 +1036,12 @@ def main():
 
     # define optimizers and schedulers
     generator_optimizer_class = getattr(
-        parallel_wavegan.optimizers,
+        ctx_vec2wav.optimizers,
         # keep compatibility
         config.get("generator_optimizer_type", "RAdam"),
     )
     discriminator_optimizer_class = getattr(
-        parallel_wavegan.optimizers,
+        ctx_vec2wav.optimizers,
         # keep compatibility
         config.get("discriminator_optimizer_type", "RAdam"),
     )

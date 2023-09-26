@@ -17,9 +17,9 @@ import yaml
 
 from tqdm import tqdm
 
-from parallel_wavegan.datasets import AudioDataset
-from parallel_wavegan.datasets import AudioSCPDataset
-from parallel_wavegan.utils import write_hdf5
+from ctx_vec2wav.datasets import AudioDataset
+from ctx_vec2wav.datasets import AudioSCPDataset
+from ctx_vec2wav.utils import write_hdf5
 
 
 def logmelfilterbank(
@@ -84,7 +84,7 @@ def logmelfilterbank(
 def main():
     """Run preprocessing process."""
     parser = argparse.ArgumentParser(
-        description="Preprocess audio and then extract features (See detail in parallel_wavegan/bin/preprocess.py)."
+        description="Preprocess audio and then extract features (See detail in ctx_vec2wav/bin/preprocess.py)."
     )
     parser.add_argument(
         "--wav-scp",

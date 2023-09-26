@@ -10,7 +10,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from parallel_wavegan.layers import Conv1d
+from ctx_vec2wav.layers import Conv1d
 
 
 class Stretch2d(torch.nn.Module):
