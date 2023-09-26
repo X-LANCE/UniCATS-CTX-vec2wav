@@ -20,16 +20,15 @@ frontend_params:
     conformer_params:
         attention_dim: &h_dim 184
         attention_heads: 2
-        # linear_units: 1536
-        feed_forward_expansion_factor: 8  # equals to linear_units=1472
+        linear_units: 1536
         num_blocks: 2
         dropout_rate: 0.2
         positional_dropout_rate: 0.2
         attention_dropout_rate: 0.2
         normalize_before: true
         concat_after: false
-        positionwise_layer_type: conv1d # linear or conv1d
-        positionwise_conv_kernel_size: 3 # if linear, this is dummy
+        positionwise_layer_type: conv1d  # linear or conv1d
+        positionwise_conv_kernel_size: 3  # if linear, this is dummy
         macaron_style: True
         pos_enc_layer_type: rel_pos
         selfattention_layer_type: rel_selfattn
