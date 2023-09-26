@@ -19,7 +19,8 @@ source path.sh  # change the env name if you don't use "ctxv2w"
 
 ## Inference (Vocoding with acoustic context)
 Working in Progress
-> 💡Note: Since the codebase used in our paper was proprietary, we have to reproduce the work using other open-sourced packages. Specifically, we used an open-sourced conformer implementation to replace the inner version. However, the performance of this repo might be slightly poorer than the proprietary one, which may be caused from nuances between different conformer implementations.
+
+[//]: # (> 💡Note: Since the codebase used in our paper was proprietary, we have to reproduce the work using other open-sourced packages. Specifically, we used an open-sourced conformer implementation to replace the inner version. However, the performance of this repo might be slightly poorer than the proprietary one, which may be caused from nuances between different conformer implementations.)
 
 
 ## Training
@@ -27,8 +28,7 @@ Working in Progress
 
 ## Acknowledgement
 During the development, the following repositories were referred to:
-* [sooftware/conformer](https://github.com/sooftware/conformer), whose conformer implementation is directly used in `ctx_vec2wav/models/conformer`.
-* [ESPnet](https://github.com/espnet/espnet), for some network modules in `ctx_vec2wav/models/conformer`.
+* [ESPnet](https://github.com/espnet/espnet), for most network modules in `ctx_vec2wav/models/conformer`.
 * [ParallelWaveGAN](https://github.com/kan-bayashi/ParallelWaveGAN), whose training and decoding pipeline is adopted.  
 
 ## Citation
