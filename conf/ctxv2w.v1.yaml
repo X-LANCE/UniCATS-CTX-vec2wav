@@ -1,14 +1,7 @@
-# This is the configuration file for LJSpeech dataset.
-# This configuration is based on HiFiGAN V1, which is
-# an official configuration. But I found that the optimizer
-# setting does not work well with my implementation.
-# So I changed optimizer settings as follows:
-# - AdamW -> Adam
-# - betas: [0.8, 0.99] -> betas: [0.5, 0.9]
-# - Scheduler: ExponentialLR -> MultiStepLR
+# This is the configuration file for CTX-vec2wav.
 
 ###########################################################
-#     VQVEC2WAV FRONTEND NETWORK ARCHITECTURE SETTING     #
+#     CTX-VEC2WAV FRONTEND NETWORK ARCHITECTURE SETTING     #
 ###########################################################
 frontend_mel_prediction_stop_steps: 200000  # after which the frontend mel prediction loss is canceled
 lambda_frontend_mel_prediction: 60  # loss coefficient
