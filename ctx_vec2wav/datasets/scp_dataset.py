@@ -47,7 +47,7 @@ def _get_feats_scp_loader(feats_scp):
 
 
 class AudioMelSCPDataset(Dataset):
-    """PyTorch compatible audio and mel dataset based on kaldi-stype scp files."""
+    """PyTorch compatible audio and feat dataset based on kaldi-stype scp files."""
 
     def __init__(
         self,
@@ -189,7 +189,7 @@ class AudioMelSCPDataset(Dataset):
 
 
 class MelSCPDataset(Dataset):
-    """PyTorch compatible mel dataset based on kaldi-stype scp files."""
+    """PyTorch compatible feat dataset based on kaldi-stype scp files."""
 
     def __init__(
         self,
