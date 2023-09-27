@@ -15,7 +15,7 @@ distributed_init=     # file path for init_process_group in distributed training
 nj=16     # number of parallel jobs in feature extraction
 
 # NOTE(kan-bayashi): renamed to conf to avoid conflict in parse_options.sh
-conf=conf/hifigan.v1.yaml
+conf=conf/ctxv2w.v1.yaml
 # conf=conf/multi_band_melgan.v2.yaml
 sampling_rate=16000        # sampling frequency
 # fmax=7600       # maximum frequency
@@ -84,7 +84,7 @@ if [ "${stage}" -le 2 ] && [ "${stop_stage}" -ge 2 ]; then
             --config "${conf}" \
             --train-wav-scp $datadir/${train_set}/wav.scp \
             --train-feats-scp ${datadir}/${train_set}/feats.scp \
-            --train-num-frames $datadir/${train_set}/utt2num_frames \
+            --train-num-frames ${datadir}/${train_set}/utt2num_frames \
             --dev-wav-scp ${datadir}/${dev_set}/wav.scp \
             --dev-feats-scp ${datadir}/${dev_set}/feats.scp \
             --dev-num-frames $datadir/${dev_set}/utt2num_frames \

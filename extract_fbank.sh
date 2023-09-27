@@ -29,7 +29,6 @@ if [ "${stage}" -le 0 ] && [ "${stop_stage}" -ge 0 ]; then
     echo "Fbank Feature Extraction"
     for x in ${train_set} ${dev_set} ${eval_set} ; do
         utils/fix_data_dir.sh ${datadir}/${x}
-    #    local/make_ppe.sh --nj ${nj} ${datadir}/${x} exp/make_ppe/${x} ${featdir}/ppe/$x
         make_fbank.sh --cmd "${train_cmd}" --nj ${nj} \
             --fs ${sampling_rate} \
             --fmax "${fmax}" \
@@ -47,10 +46,14 @@ fi
 
 if [ "${stage}" -le 1 ] && [ "${stop_stage}" -ge 1 ]; then
     echo "Cepstral Mean Variance Normalization"
-    tmpdir=`mktemp -d exp/apply_cmvn.XXXX`
-    compute-cmvn-stats.py scp:${featdir}/fbank/${train_set}/feats.scp ${featdir}/fbank/${train_set}/cmvn.ark
+    feat_name=fbank
+    compute-cmvn-stats.py scp:${featdir}/${feat_name}/${train_set}/feats.scp ${featdir}/${feat_name}/${train_set}/cmvn.ark
     for x in ${train_set} ${dev_set} ${eval_set} ; do
-        apply-cmvn.py --norm-vars=true ${featdir}/fbank/${train_set}/cmvn.ark scp:${featdir}/fbank/${x}/feats.scp \
-                    ark,scp:${tmpdir}/normed_fbank_${x}.ark,${tmpdir}/normed_fbank_${x}.scp
+        echo "Applying normalization for dataset ${x}"
+        mkdir -p ${featdir}/normed_${feat_name}/${x} ;
+        apply-cmvn.py --norm-vars=true --compress True \
+                    ${featdir}/${feat_name}/${train_set}/cmvn.ark \
+                    scp:${featdir}/${feat_name}/${x}/feats.scp \
+                    ark,scp:${featdir}/normed_${feat_name}/${x}/feats.ark,${featdir}/normed_${feat_name}/${x}/feats.scp
     done
 fi

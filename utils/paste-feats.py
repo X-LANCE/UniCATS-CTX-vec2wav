@@ -27,6 +27,11 @@ def get_parser():
     parser.add_argument("--length-tolerance", default=0, type=int,
                         help="If length is different, trim as shortest up to a frame  difference of length-tolerance, "
                              "otherwise exclude segment. (int, default = 0)")
+    parser.add_argument('--compress', type=strtobool, default=False,
+                        help='Save in compressed format')
+    parser.add_argument('--compression-method', type=int, default=2,
+                        help='Specify the method(if mat) or '
+                             'gzip-level(if hdf5)')
 
     parser.add_argument('rspecifier', nargs="*", type=str,
                         help='List of read specifiers id. e.g. scp:some.scp'
@@ -53,12 +58,15 @@ def main():
          "This is because using kaldiio.load_scp, we can ensure the lazy-loading strategy instead of storing all the feats in memory"
          "Although this may sacrifice some speed but in this way arbitrarily large feats can be supported")
     all_state_dicts = [kaldiio.load_scp(specifier.lstrip("scp:")) for specifier in args.rspecifier]
-    all_keys = [state_dict.keys() for state_dict in all_state_dicts]
-    for keys in all_keys[1:]:
-        assert keys == all_keys[0], "Inputs have different keys"
+    all_keys = [set(state_dict.keys()) for state_dict in all_state_dicts]
+    # for keys in all_keys[1:]:
+    #     assert keys == all_keys[0], "Inputs have different keys"
+    intersect_keys = set.intersection(*all_keys)
 
-    with file_writer_helper(args.wspecifier) as writer:
-        for key in tqdm(all_keys[0]):
+    with file_writer_helper(args.wspecifier,
+                            compress=args.compress,
+                            compression_method=args.compression_method) as writer:
+        for key in tqdm(intersect_keys, desc="Pasting (concatenating) feats"):
             data_list = [specifier[key] for specifier in all_state_dicts]
             current_data = data_list[0]
             for target_data in data_list[1:]:
