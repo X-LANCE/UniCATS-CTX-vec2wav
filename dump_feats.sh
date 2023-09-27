@@ -39,10 +39,6 @@ if [ "${stage}" -le 0 ] && [ "${stop_stage}" -ge 0 ]; then
                        scp:${fbankdir}/${x}/feats.scp \
                        ark,scp:${dump_feat_dir}/feats.JOB.ark,${dump_feat_dir}/feats.JOB.scp \
                        --compress True
-#        copy-feats.py ark:${dump_feat_dir}/tmp_feats.JOB.ark \
-#                                        ark,scp:${dump_feat_dir}/feats.JOB.ark,${dump_feat_dir}/feats.JOB.scp \
-#                                        --compress True
-#        rm -rf ${dump_feat_dir}/tmp_feats.*.ark
         cat ${dump_feat_dir}/feats.*.scp | sort > ${datadir}/${x}/feats.scp
     done
 fi

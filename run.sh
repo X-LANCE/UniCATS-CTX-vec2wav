@@ -16,12 +16,8 @@ nj=16     # number of parallel jobs in feature extraction
 
 # NOTE(kan-bayashi): renamed to conf to avoid conflict in parse_options.sh
 conf=conf/ctxv2w.v1.yaml
-# conf=conf/multi_band_melgan.v2.yaml
 sampling_rate=16000        # sampling frequency
-# fmax=7600       # maximum frequency
-# fmin=80         # minimum frequency
 num_mels=80     # number of mel basis
-# fft_size=1024   # number of fft points
 hop_size=160    # number of shift points
 win_length=465  # window length
 
@@ -53,6 +49,7 @@ eval_set="eval_subset"
 . parse_options.sh || exit 1;
 
 set -eo pipefail
+chmod +x ctx_vec2wav/bin/train.py ctx_vec2wav/bin/decode.py
 
 vqdir=feats/vqidx/
 
