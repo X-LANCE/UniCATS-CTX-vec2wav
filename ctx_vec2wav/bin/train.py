@@ -187,7 +187,7 @@ class Trainer(object):
         """Train model one step."""
         # parse batch
         vqidx, aux, mel, prompt, y, xlens, prompt_lens = batch
-        vqidx = vqidx.to(self.device)
+        vqidx = vqidx.long().to(self.device)
         mel = mel.to(self.device)
         aux = aux.to(self.device)
         prompt = prompt.to(self.device)
@@ -640,9 +640,9 @@ class Collator(object):
         batch = [
             self._adjust_length(*b) for b in batch
         ]
-        ys, cs = [b[0] for b in batch], [b[1] for b in batch]  # cs is the concatenated features (aux, vq, mel)
+        ys, vqs, mels, auxs = [b[0] for b in batch], [b[1] for b in batch], [b[2] for b in batch], [b[3] for b in batch]
 
-        batch_size = len(cs)
+        batch_size = len(vqs)
 
         # crop prompt feature
         offset_max_index = int(1 * self.sampling_rate / self.hop_size)  # the latest frames that the prompt can start. Equals to 1s.
@@ -656,22 +656,22 @@ class Collator(object):
         prompt = torch.zeros(batch_size, max(prompt_lengths), self.n_mel)
         for i in range(batch_size):
             data_offset = prompt_offsets[i] + prompt_lengths[i]
-            prompt[i, :prompt_lengths[i]] = torch.tensor(cs[i][prompt_offsets[i]:data_offset, -self.n_mel:])
-            c_lengths.append(len(cs[i]) - data_offset)
-            cs[i] = cs[i][data_offset:]
+            prompt[i, :prompt_lengths[i]] = torch.tensor(mels[i][prompt_offsets[i]:data_offset, :])
+            c_lengths.append(len(mels[i]) - data_offset)
+            mels[i] = mels[i][data_offset:]
+            vqs[i] = vqs[i][data_offset:]
+            auxs[i] = auxs[i][data_offset:]
+
             ys[i] = ys[i][data_offset * self.hop_size:]
 
-        cs = pad_list([torch.tensor(c) for c in cs], pad_value=0)  # (B, L, 85)
-        ys = pad_list([torch.tensor(y, dtype=torch.float) for y in ys], pad_value=0)[:, :cs.size(1) * self.hop_size]  # (B, T)
-        assert ys.size(1) == cs.size(1) * self.hop_size
+        vqs = pad_list([torch.tensor(c) for c in vqs], pad_value=0)  # (B, L, 2)
+        mels = pad_list([torch.tensor(c) for c in mels], pad_value=0)  # (B, L, 80)
+        auxs = pad_list([torch.tensor(c) for c in auxs], pad_value=0)  # (B, L, 3)
 
-        aux = cs[:, :, :3]  # (B, L, 3)
-        vqidx = cs[:, :, 3: 5].long()  # (B, L, 2)
+        ys = pad_list([torch.tensor(y, dtype=torch.float) for y in ys], pad_value=0)[:, :mels.size(1) * self.hop_size]  # (B, T)
+        assert ys.size(1) == mels.size(1) * self.hop_size == auxs.size(1) * self.hop_size == vqs.size(1) * self.hop_size
 
-        # slice mel spectrogram
-        mel = cs[:, :, -self.n_mel:]  # (B, L, 80)
-
-        return vqidx, aux, mel, prompt, ys, c_lengths, prompt_lengths
+        return vqs, auxs, mels, prompt, ys, c_lengths, prompt_lengths
 
     def _adjust_length(self, x, c, *args):
         """Adjust the audio and feature lengths.
@@ -704,7 +704,19 @@ def main():
         help="kaldi-style wav.scp file for training. "
     )
     parser.add_argument(
-        "--train-feats-scp",
+        "--train-vqidx-scp",
+        default=None,
+        type=str,
+        help="kaldi-style feats.scp file for training. "
+    )
+    parser.add_argument(
+        "--train-mel-scp",
+        default=None,
+        type=str,
+        help="kaldi-style feats.scp file for training. "
+    )
+    parser.add_argument(
+        "--train-aux-scp",
         default=None,
         type=str,
         help="kaldi-style feats.scp file for training. "
@@ -740,7 +752,19 @@ def main():
         help="kaldi-style wav.scp file for validation. "
     )
     parser.add_argument(
-        "--dev-feats-scp",
+        "--dev-vqidx-scp",
+        default=None,
+        type=str,
+        help="kaldi-style feats.scp file for vaidation. "
+    )
+    parser.add_argument(
+        "--dev-mel-scp",
+        default=None,
+        type=str,
+        help="kaldi-style feats.scp file for vaidation. "
+    )
+    parser.add_argument(
+        "--dev-aux-scp",
         default=None,
         type=str,
         help="kaldi-style feats.scp file for vaidation. "
@@ -888,7 +912,9 @@ def main():
     # get dataset
     train_dataset = AudioMelSCPDataset(
         wav_scp=args.train_wav_scp,
-        feats_scp=args.train_feats_scp,
+        vqidx_scp=args.train_vqidx_scp,
+        mel_scp=args.train_mel_scp,
+        aux_scp=args.train_aux_scp,
         utt2num_frames=args.train_num_frames,
         segments=args.train_segments,
         batch_frames=config.get("batch_frames", None),
@@ -896,16 +922,20 @@ def main():
         min_num_frames=config.get("min_num_frames", None),
         max_num_frames=config.get("max_num_frames", None),
         allow_cache=config.get("allow_cache", False),  # keep compatibility
+        length_tolerance=config.get("length_tolerance", 2)
     )
     logging.info(f"The number of training files = {len(train_dataset)}.")
     dev_dataset = AudioMelSCPDataset(
         wav_scp=args.dev_wav_scp,
-        feats_scp=args.dev_feats_scp,
+        vqidx_scp=args.dev_vqidx_scp,
+        mel_scp=args.dev_mel_scp,
+        aux_scp=args.dev_aux_scp,
         utt2num_frames=args.dev_num_frames,
         segments=args.dev_segments,
         min_num_frames=config.get("min_num_frames", None),
         max_num_frames=config.get("max_num_frames", None),
         allow_cache=config.get("allow_cache", False),  # keep compatibility
+        length_tolerance=config.get("length_tolerance", 2)
     )
     logging.info(f"The number of development files = {len(dev_dataset)}.")
     dataset = {

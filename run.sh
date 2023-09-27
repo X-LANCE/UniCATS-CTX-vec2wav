@@ -80,10 +80,14 @@ if [ "${stage}" -le 2 ] && [ "${stop_stage}" -ge 2 ]; then
         train.py \
             --config "${conf}" \
             --train-wav-scp $datadir/${train_set}/wav.scp \
-            --train-feats-scp ${datadir}/${train_set}/feats.scp \
+            --train-vqidx-scp ${featdir}/vqidx/${train_set}/feats.scp \
+            --train-mel-scp ${featdir}/normed_fbank/${train_set}/feats.scp \
+            --train-aux-scp ${featdir}/normed_ppe/${train_set}/feats.scp \
             --train-num-frames ${datadir}/${train_set}/utt2num_frames \
             --dev-wav-scp ${datadir}/${dev_set}/wav.scp \
-            --dev-feats-scp ${datadir}/${dev_set}/feats.scp \
+            --dev-vqidx-scp ${featdir}/vqidx/${dev_set}/feats.scp \
+            --dev-mel-scp ${featdir}/normed_fbank/${dev_set}/feats.scp \
+            --dev-aux-scp ${featdir}/normed_ppe/${dev_set}/feats.scp \
             --dev-num-frames $datadir/${dev_set}/utt2num_frames \
             --vq-codebook $vqdir/codebook.npy \
             --outdir "${expdir}" \

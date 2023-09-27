@@ -131,7 +131,7 @@ def main():
 
     # get dataset
     dataset = MelSCPDataset(
-        feats_scp=args.feats_scp,
+        vqidx_scp=args.feats_scp,
         prompt_scp=args.prompt_scp,
         utt2num_frames=args.num_frames,
         return_utt_id=True,
@@ -164,7 +164,7 @@ def main():
         for idx, batch in enumerate(pbar, 1):
             utt_id, c, prompt = batch[0], batch[1], batch[2]
 
-            c = torch.tensor(c).to(device)  # (L, 5)
+            c = torch.tensor(c).to(device)  # (L, D)
             prompt = torch.tensor(prompt).unsqueeze(0).to(device)  # (1, L', 80)
 
             # slice vq vector

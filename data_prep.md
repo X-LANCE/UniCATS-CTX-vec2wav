@@ -25,14 +25,20 @@ nj=64  # parallel jobs. Set this according to your CPU cores.
 bash extract_fbank.sh --nj $nj --stage 0 --stop_stage 1  # Default: 80-dim with 10ms frame shift
 # Stage 0 extracts fbank in parallel. Stage 1 performs normalization.
 ```
-This will create `feats/fbank` and `feats/normed_fbank` each about 16GB. You can delete `feats/fbank` after normalization.
+This will create `feats/fbank` and `feats/normed_fbank` each about 16GB. You can delete `feats/fbank` after normalization (just it would be better if you keep the `train_all/cmvn.ark` there).
 
-After having the three types of features, run the following to concatenate these features to form the 85-dim input to the model:
-```shell
-nj=64
-bash dump_feats.sh --nj $nj
-```
-This will create `feats/dump` and write `feats.scp` in each of the `data` sub-directories. See `exp/dump_feats` for logs. 
-As this will create a copy of all the features above, you may delete the rest if you need (**but keep the `feats/vqidx/codebook.npy` safe!**).
+[//]: # (After having the three types of features, run the following to concatenate these features to form the 85-dim input to the model:)
+
+[//]: # (```shell)
+
+[//]: # (nj=64)
+
+[//]: # (bash dump_feats.sh --nj $nj)
+
+[//]: # (```)
+
+[//]: # (This will create `feats/dump` and write `feats.scp` in each of the `data` sub-directories. See `exp/dump_feats` for logs. )
+
+[//]: # (As this will create a copy of all the features above, you may delete the rest if you need &#40;**but keep the `feats/vqidx/codebook.npy` safe!**&#41;.)
 
 Finally, you have correctly formatted the data for training!

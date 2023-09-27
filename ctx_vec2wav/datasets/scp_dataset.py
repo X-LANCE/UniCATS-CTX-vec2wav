@@ -52,7 +52,9 @@ class AudioMelSCPDataset(Dataset):
     def __init__(
         self,
         wav_scp,
-        feats_scp,
+        vqidx_scp,
+        mel_scp,
+        aux_scp,
         utt2num_frames=None,
         segments=None,
         batch_frames=None,
@@ -62,12 +64,15 @@ class AudioMelSCPDataset(Dataset):
         return_utt_id=False,
         return_sampling_rate=False,
         allow_cache=False,
+        length_tolerance=2
     ):
         """Initialize dataset.
 
         Args:
             wav_scp (str): Kaldi-style wav.scp file.
-            feats_scp (str): Kaldi-style fests.scp file.
+            vqidx_scp (str): Kaldi-style fests.scp file.
+            mel_scp (str): Kaldi-style fests.scp file.
+            aux_scp (str): Kaldi-style fests.scp file.
             segments (str): Kaldi-style segments file.
             min_num_frames (int): Threshold to remove short feature files.
             max_num_frames (int): Threshold to remove long feature files.
@@ -78,7 +83,9 @@ class AudioMelSCPDataset(Dataset):
         """
         # load scp as lazy dict
         self.audio_loader = kaldiio.load_scp(wav_scp, segments=segments)
-        self.mel_loader = _get_feats_scp_loader(feats_scp)
+        self.vqidx_loader = _get_feats_scp_loader(vqidx_scp)
+        self.mel_loader = _get_feats_scp_loader(mel_scp)
+        self.aux_loader = _get_feats_scp_loader(aux_scp)
         self.utt_ids = list(self.mel_loader.keys())
         self.return_utt_id = return_utt_id
         self.return_sampling_rate = return_sampling_rate
@@ -118,6 +125,7 @@ class AudioMelSCPDataset(Dataset):
             # NOTE(kan-bayashi): Manager is need to share memory in dataloader with num_workers > 0
             self.manager = Manager()
             self.caches = self.manager.dict()
+        self.length_tolerance = length_tolerance
 
     def batchify(self, utt2num_frames_loader, batch_frames=None, batch_size=None, min_batch_size=1, drop_last=True):
 
@@ -160,6 +168,15 @@ class AudioMelSCPDataset(Dataset):
             else:
                 fs, audio = self.audio_loader[utt_id]
                 mel = self.mel_loader[utt_id]
+                vqidx = self.vqidx_loader[utt_id]
+                aux = self.aux_loader[utt_id]
+
+                min_len = min(len(mel), len(vqidx), len(aux))
+                assert (((abs(len(mel) - min_len) <= self.length_tolerance) and
+                        (abs(len(vqidx) - min_len) <= self.length_tolerance)) and
+                        (abs(len(aux) - min_len) <= self.length_tolerance)), \
+                    f"Audio feature lengths difference exceeds length tolerance for {utt_id}"
+                mel, vqidx, aux = mel[:min_len], vqidx[:min_len], aux[:min_len]
 
                 # normalize audio signal to be [-1, 1]
                 audio = audio.astype(np.float32)
@@ -169,9 +186,9 @@ class AudioMelSCPDataset(Dataset):
                     audio = (audio, fs)
 
                 if self.return_utt_id:
-                    items = utt_id, audio, mel
+                    items = utt_id, audio, vqidx, mel, aux
                 else:
-                    items = audio, mel
+                    items = audio, vqidx, mel, aux
 
                 if self.allow_cache:
                     self.caches[utt_id] = items
@@ -193,7 +210,7 @@ class MelSCPDataset(Dataset):
 
     def __init__(
         self,
-        feats_scp,
+        vqidx_scp,
         prompt_scp,
         utt2num_frames=None,
         min_num_frames=None,
@@ -204,7 +221,7 @@ class MelSCPDataset(Dataset):
         """Initialize dataset.
 
         Args:
-            feats_scp (str): Kaldi-style fests.scp file.
+            vqidx_scp (str): Kaldi-style fests.scp file.
             prompt_scp (str): Kaldi-style scp file. In this file, every utt is associated with its prompt's mel-spectrogram.
             min_num_frames (int): Threshold to remove short feature files.
             max_num_frames (int): Threshold to remove long feature files.
@@ -212,35 +229,35 @@ class MelSCPDataset(Dataset):
             allow_cache (bool): Whether to allow cache of the loaded files.
         """
         # load scp as lazy dict
-        mel_loader = _get_feats_scp_loader(feats_scp)
+        vqidx_loader = _get_feats_scp_loader(vqidx_scp)
         prompt_loader = _get_feats_scp_loader(prompt_scp)
-        mel_keys = list(set(prompt_loader.keys()) & set(mel_loader.keys()))
+        vqidx_keys = list(set(prompt_loader.keys()) & set(vqidx_loader.keys()))
 
         utt2num_frames_loader = None
         if utt2num_frames is not None:
             with open(utt2num_frames, 'r') as f:
                 utt2num_frames_loader = dict([(x.split()[0], int(x.split()[1])) for x in f.readlines()])
         else:
-            utt2num_frames_loader = dict([(k, mel.shape[0]) for k, mel in mel_loader.items()])
+            utt2num_frames_loader = dict([(k, mel.shape[0]) for k, mel in vqidx_loader.items()])
 
         # filter by threshold
         if (min_num_frames or max_num_frames) is not None:
-            mel_lengths = [utt2num_frames_loader[key] for key in mel_keys]
+            mel_lengths = [utt2num_frames_loader[key] for key in vqidx_keys]
             idxs = [
                 idx
-                for idx in range(len(mel_keys))
+                for idx in range(len(vqidx_keys))
                 if (min_num_frames and mel_lengths[idx] > min_num_frames) and (max_num_frames and mel_lengths[idx] < max_num_frames)
             ]
-            if len(mel_keys) != len(idxs):
+            if len(vqidx_keys) != len(idxs):
                 logging.warning(
                     f"Some files are filtered by mel length threshold "
-                    f"({len(mel_keys)} -> {len(idxs)})."
+                    f"({len(vqidx_keys)} -> {len(idxs)})."
                 )
-            mel_keys = [mel_keys[idx] for idx in idxs]
+            vqidx_keys = [vqidx_keys[idx] for idx in idxs]
 
-        self.mel_loader = mel_loader
+        self.vqidx_loader = vqidx_loader
         self.prompt_loader = prompt_loader
-        self.utt_ids = mel_keys
+        self.utt_ids = vqidx_keys
         self.return_utt_id = return_utt_id
         self.allow_cache = allow_cache
 
@@ -265,13 +282,13 @@ class MelSCPDataset(Dataset):
             return self.caches[idx]
 
         utt_id = self.utt_ids[idx]
-        mel = self.mel_loader[utt_id]
+        vqidx = self.vqidx_loader[utt_id]
         prompt = self.prompt_loader[utt_id].copy()
 
         if self.return_utt_id:
-            items = utt_id, mel, prompt
+            items = utt_id, vqidx, prompt
         else:
-            items = mel, prompt
+            items = vqidx, prompt
 
         if self.allow_cache:
             self.caches[idx] = items

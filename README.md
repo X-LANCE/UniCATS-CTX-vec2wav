@@ -24,6 +24,12 @@ The following process will also need `bash` and `perl` commands in your Linux en
 ## Inference (Vocoding with acoustic context)
 Working in Progress
 
+```shell
+bash run.sh --stage 3 --stop_stage 3
+# You can specify the dataset to be constructed by --eval_set $which_set
+```
+The pretrained model can be found [online](https://huggingface.co/cantabile-kwok/ctx_vec2wav_libritts_all/resolve/main/ctx_v2w.pkl).
+
 ## Training
 
 First, you need to properly construct `data` and `feats` directory. Please check out [data_prep](data_prep.md) for details.
