@@ -43,7 +43,7 @@ checkpoint=   # checkpoint path to be used for decoding
 train_set="train_${part}" # name of training data directory
 dev_set="dev_${part}"           # name of development data directory
 # eval_set="eval_${part}"         # name of evaluation data directory
-eval_set="eval_subset"
+eval_set="eval_${part}"
 
 # shellcheck disable=SC1091
 . parse_options.sh || exit 1;
@@ -106,6 +106,7 @@ if [ "${stage}" -le 3 ] && [ "${stop_stage}" -ge 3 ]; then
     outdir="${expdir}/synthesis/$(basename "${checkpoint}" .pkl)"
     for name in "${eval_set}"; do
         [ ! -e "${outdir}/${name}" ] && mkdir -p "${outdir}/${name}"
+        mkdir -p ${featdir}/normed_fbank/${name}
         python local/select_feats.py 5-84 scp:${datadir}/${name}/feats.scp ark,scp:${featdir}/normed_fbank/${name}/feats.ark,${featdir}/normed_fbank/${name}/feats.scp
         python local/build_prompt_feat.py ${datadir}/${name}/utt2num_frames ${datadir}/${name}/utt2spk ${featdir}/normed_fbank/${name}/feats.scp 300 > ${datadir}/${name}/prompt.scp
         echo "Decoding start. See the progress via ${outdir}/${name}/decode.log."
