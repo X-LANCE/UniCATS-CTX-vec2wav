@@ -33,7 +33,7 @@ subset_data_dir.sh data/eval_all 200 data/eval_subset  # randomly select 200 utt
 bash run.sh --stage 3 --stop_stage 3 --eval_set "eval_subset"
 ```
 The program loads the latest checkpoint in the experiment dir `exp/train_all_ctxv2w.v1/*pkl`.
-The pretrained model on LibriTTS-all can be found [online](https://huggingface.co/cantabile-kwok/ctx_vec2wav_libritts_all/resolve/main/ctx_v2w.pkl) (or [here](https://www.modelscope.cn/api/v1/models/CantabileKwok/ctx-vec2wav-libritts-all/repo?Revision=master&FilePath=ctx_v2w.pkl) for Chinese users.)
+The pretrained model (in 16kHz rate) on LibriTTS-all can be found [online](https://huggingface.co/cantabile-kwok/ctx_vec2wav_libritts_all/resolve/main/ctx_v2w.pkl) (or [here](https://www.modelscope.cn/api/v1/models/CantabileKwok/ctx-vec2wav-libritts-all/repo?Revision=master&FilePath=ctx_v2w.pkl) for Chinese users.)
 
 💡Note: the stage 3 in `run.sh` automatically selects the prompt for each utterance by random (see `local/build_prompt_feat.py`).
 You can customize this process and perform inference yourself:
@@ -54,6 +54,8 @@ You can customize this process and perform inference yourself:
 ## Training
 
 First, you need to properly construct `data` and `feats` directory. Please check out [data_prep](data_prep.md) for details.
+> 💡Note: here we provide the 16kHz version of model and data. Meanwhile, the original paper uses 24kHz data, which was accomplished by using the features extracted in 16kHz and increasing the `upsample_scales` in the config yaml.
+
 
 Then, training on LibriTTS (all training partitions) can be done by
 ```shell
