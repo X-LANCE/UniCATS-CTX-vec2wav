@@ -1,4 +1,4 @@
-# \[Working in Progress\] CTX-vec2wav, the Acoustic Context-Aware Vocoder
+# CTX-vec2wav, the Acoustic Context-Aware Vocoder
 
 > This is the official implementation of CTX-vec2wav vocoder in the paper [UniCATS: A Unified Context-Aware Text-to-Speech Framework with Contextual VQ-Diffusion and Vocoding](https://arxiv.org/abs/2306.07547).
 
@@ -22,13 +22,34 @@ The following process will also need `bash` and `perl` commands in your Linux en
 
 
 ## Inference (Vocoding with acoustic context)
-Working in Progress
-
+For utterances that are already registered in `data/`, the inference (VQ index + acoustic prompt) can be done by
 ```shell
 bash run.sh --stage 3 --stop_stage 3
-# You can specify the dataset to be constructed by --eval_set $which_set
+# You can specify the dataset to be constructed by "--eval_set $which_set", i.e. "--eval_set dev_all"
 ```
-The pretrained model can be found [online](https://huggingface.co/cantabile-kwok/ctx_vec2wav_libritts_all/resolve/main/ctx_v2w.pkl).
+You can also create a subset can perform inference on it by
+```shell
+subset_data_dir.sh data/eval_all 200 data/eval_subset  # randomly select 200 utts from data/eval_all
+bash run.sh --stage 3 --stop_stage 3 --eval_set "eval_subset"
+```
+The program loads the latest checkpoint in the experiment dir `exp/train_all_ctxv2w.v1/*pkl`.
+The pretrained model on LibriTTS-all can be found [online](https://huggingface.co/cantabile-kwok/ctx_vec2wav_libritts_all/resolve/main/ctx_v2w.pkl) (or [here](https://www.modelscope.cn/api/v1/models/CantabileKwok/ctx-vec2wav-libritts-all/repo?Revision=master&FilePath=ctx_v2w.pkl) for Chinese users.)
+
+💡Note: the stage 3 in `run.sh` automatically selects the prompt for each utterance by random (see `local/build_prompt_feat.py`).
+You can customize this process and perform inference yourself:
+1. Prepare a `feats.scp` that specifies each utterance (for inference) with its VQ index sequence in `(L, 2)` shape.
+2. Run `feat-to-len.py scp:/path/to/feats.scp > /path/to/utt2num_frames`.
+3. Prepare a `prompt.scp` that specifies each utterance with its acoustic (mel) prompt in `(L', 80)` shape.
+4. Run inference via
+    ```shell
+    decode.py \
+        --feats-scp /path/to/feats.scp \
+        --prompt-scp /path/to/prompt.scp \
+        --num-frames /path/to/utt2num_frames \
+        --checkpoint /path/to/checkpoint \
+        --outdir /path/to/output/wav \
+        --verbose ${verbose}  # logging level. higher is more logging. (default=1)
+    ```
 
 ## Training
 

@@ -110,8 +110,13 @@ if [ "${stage}" -le 3 ] && [ "${stop_stage}" -ge 3 ]; then
     outdir="${expdir}/synthesis/$(basename "${checkpoint}" .pkl)"
     for name in "${eval_set}"; do
         [ ! -e "${outdir}/${name}" ] && mkdir -p "${outdir}/${name}"
-        mkdir -p ${featdir}/normed_fbank/${name}
-        python local/select_feats.py 5-84 scp:${datadir}/${name}/feats.scp ark,scp:${featdir}/normed_fbank/${name}/feats.ark,${featdir}/normed_fbank/${name}/feats.scp
+
+        if [ ! -e "${featdir}/normed_fbank/${name}" ]; then
+            mkdir -p "${featdir}/normed_fbank/${name}"
+            cat ${featdir}/normed_fbank/{dev_all,eval_all}/feats.scp | filter_scp.pl ${datadir}/${name}/wav.scp - | uniq > ${featdir}/normed_fbank/${name}/feats.scp
+        fi
+        echo "$(wc -l ${featdir}/normed_fbank/${name}/feats.scp) utterances for decoding"
+
         python local/build_prompt_feat.py ${datadir}/${name}/utt2num_frames ${datadir}/${name}/utt2spk ${featdir}/normed_fbank/${name}/feats.scp 300 > ${datadir}/${name}/prompt.scp
         echo "Decoding start. See the progress via ${outdir}/${name}/decode.log."
                 # --prompt-scp ${outdir}/${name}/prompt.scp \

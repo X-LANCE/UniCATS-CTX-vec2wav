@@ -20,11 +20,11 @@ and we provide the extracted VQ index sequences with codebook online.
   2. Similarly, please unzip it to `feats/normed_ppe`, and change the corresponding paths in `feats.scp`. 
   3. Check: the shapes of these features should be `(frames, 3)`.
 * **Mel spectrograms (FBanks)**. As they are too large, we provide a script to extract them locally:
-```shell
-nj=64  # parallel jobs. Set this according to your CPU cores.
-bash extract_fbank.sh --nj $nj --stage 0 --stop_stage 1  # Default: 80-dim with 10ms frame shift
-# Stage 0 extracts fbank in parallel. Stage 1 performs normalization.
-```
+  ```shell
+  nj=64  # parallel jobs. Set this according to your CPU cores.
+  bash extract_fbank.sh --nj $nj --stage 0 --stop_stage 1  # Default: 80-dim with 10ms frame shift
+  # Stage 0 extracts fbank in parallel. Stage 1 performs normalization.
+  ```
 This will create `feats/fbank` and `feats/normed_fbank` each about 16GB. You can delete `feats/fbank` after normalization (just it would be better if you keep the `train_all/cmvn.ark` there).
 
 [//]: # (After having the three types of features, run the following to concatenate these features to form the 85-dim input to the model:)

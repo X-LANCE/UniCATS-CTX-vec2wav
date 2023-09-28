@@ -28,9 +28,10 @@ with open(f_feats_scp) as f:
 
 for spk in spk2utt.keys():
     utts = spk2utt[spk]
-    prompts = list(sorted(filter(lambda x:utt2num_frames[x]>threshold, utts), key=lambda x: utt2num_frames[x]))
+    # filter utts whose num_frames is higher than threshold. Then sort them by num_frames.
+    prompts = list(sorted(filter(lambda x: utt2num_frames[x] > threshold, utts), key=lambda x: utt2num_frames[x]))
     if len(prompts) == 0:
         continue
-    prompt = prompts[0]
+    prompt = prompts[0]  # take the shortest one
     for utt in utts:
         print(f"{utt} {feats_scp[prompt]}")
