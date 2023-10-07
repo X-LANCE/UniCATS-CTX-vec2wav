@@ -187,7 +187,7 @@ class Trainer(object):
         """Train model one step."""
         # parse batch
         vqidx, aux, mel, prompt, y, xlens, prompt_lens = batch
-        vqidx = vqidx.long().to(self.device)
+        vqidx = vqidx.to(self.device)
         mel = mel.to(self.device)
         aux = aux.to(self.device)
         prompt = prompt.to(self.device)
