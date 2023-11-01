@@ -13,7 +13,6 @@ resemblyzer
 pathlib~=1.0.1
 pyyaml~=6.0
 tensorboardx~=2.5.1
-sklearn~=0.0
 scikit-learn~=0.24.2
 filelock~=3.12.2
 scipy~=1.7.1

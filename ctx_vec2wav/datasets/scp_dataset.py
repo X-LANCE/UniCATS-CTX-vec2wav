@@ -238,7 +238,7 @@ class MelSCPDataset(Dataset):
             with open(utt2num_frames, 'r') as f:
                 utt2num_frames_loader = dict([(x.split()[0], int(x.split()[1])) for x in f.readlines()])
         else:
-            utt2num_frames_loader = dict([(k, mel.shape[0]) for k, mel in vqidx_loader.items()])
+            utt2num_frames_loader = dict([(k, vqidx.shape[0]) for k, vqidx in vqidx_loader.items()])
 
         # filter by threshold
         if (min_num_frames or max_num_frames) is not None:
