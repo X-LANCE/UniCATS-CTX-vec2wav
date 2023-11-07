@@ -134,8 +134,9 @@ class AudioMelSCPDataset(Dataset):
         batches = []
         batch = []
         accum_num_frames = 0
+        utt_id_set = set(self.utt_ids)
         for utt_id, mel_length in tqdm(sorted(list(utt2num_frames_loader.items()), key=lambda x: x[1], reverse=True)):
-            if utt_id not in self.utt_ids:
+            if utt_id not in utt_id_set:
                 continue
             if (batch_frames is not None and accum_num_frames + mel_length > batch_frames and len(batch) > min_batch_size) or (batch_size is not None and len(batch) == batch_size):
                 batches.append(batch)
