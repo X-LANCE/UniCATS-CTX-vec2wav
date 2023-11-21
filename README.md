@@ -65,6 +65,14 @@ bash run.sh --stage 2 --stop_stage 2
 ```
 This will create `exp/train_all_ctxv2w.v1` for logging.
 
+## Pre-trained model parameters
+We release two versions of model parameters (generator) on LibriTTS train-all set. These refer to two sampling rates of the target waveforms. 
+Note that the acoustic features (fbank+ppe) are all extracted from 16k waveform. The only difference is the upsample rate in the HifiGAN generator.
+* 16k: [link](https://huggingface.co/cantabile-kwok/ctx_vec2wav_libritts_all/resolve/main/ctx_v2w.pkl?download=true)
+* 24k: [link](https://huggingface.co/cantabile-kwok/ctx_vec2wav_libritts_all/resolve/main/ctx_v2w_24k.pkl?download=true) with the corresponding config file `conf/ctxv2w.24k.yaml`.
+
+The usage is the same as the "Inference" section. Feel free to use these checkpoints for vocoding!
+
 ## Acknowledgement
 During the development, the following repositories were referred to:
 * [ESPnet](https://github.com/espnet/espnet), for most network modules in `ctx_vec2wav/models/conformer`.
