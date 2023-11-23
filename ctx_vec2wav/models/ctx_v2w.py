@@ -93,7 +93,7 @@ class CTXVEC2WAVGenerator(torch.nn.Module):
 
     def inference(self, vqvec, prompt, aux=None, **kwargs):
         # if aux is provided, force the frontend to use the provided aux feature.
-        h, mel, aux = self.frontend(vqvec, prompt, aux)
+        h, mel, aux = self.frontend(vqvec, prompt, aux=aux)
         wav = self.backend.inference(h, **kwargs)
 
         return mel, aux, wav
