@@ -73,6 +73,8 @@ Note that the acoustic features (fbank+ppe) are all extracted from 16k waveform.
 
 The usage is the same as the "Inference" section. Feel free to use these checkpoints for vocoding!
 
+**CMVN file**: in order to perform inference on out-of-set utterances, we provide the `cmvn.ark` file [here](https://huggingface.co/cantabile-kwok/ctx_vec2wav_libritts_all/resolve/main/cmvn.ark). You should extract mel-spectrogram, normalize by that file (computed on LibriTTS), and then feed the model.
+
 ## Acknowledgement
 During the development, the following repositories were referred to:
 * [ESPnet](https://github.com/espnet/espnet), for most network modules in `ctx_vec2wav/models/conformer`.
