@@ -1,8 +1,4 @@
-try:
-    import speechmetrics
-except ModuleNoteFoundError as e:
-    print("Run this program in `vits` env")
-    exit(1)
+import speechmetrics
 import os
 import numpy as np
 import sys
