@@ -123,7 +123,7 @@ if [ "${stage}" -le 3 ] && [ "${stop_stage}" -ge 3 ]; then
         echo "$(wc -l ${featdir}/normed_fbank/${name}/feats.scp) utterances for decoding"
 
         python local/build_prompt_feat.py ${datadir}/${name}/utt2num_frames ${datadir}/${name}/utt2spk ${featdir}/normed_fbank/${name}/feats.scp 300 > ${datadir}/${name}/prompt.scp
-        echo "Decoding start. See the progress via ${outdir}/${name}/decode.log."
+        echo "Decoding start. See the progress via ${outdir}/${name}/log/decode.log."
         ${cuda_cmd} --gpu 1 "${outdir}/${name}/log/decode.log" \
             decode.py \
                 --feats-scp ${featdir}/vqidx/${name}/feats.scp \
