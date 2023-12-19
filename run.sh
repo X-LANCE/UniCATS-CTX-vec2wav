@@ -66,17 +66,10 @@ fi
 if [ "${stage}" -le 2 ] && [ "${stop_stage}" -ge 2 ]; then
     echo "Stage 2: Network training"
     [ ! -e "${expdir}" ] && mkdir -p "${expdir}"
-    if [ -z $SLURM_ARRAY_TASK_ID ] ; then rank=0 ; else rank=$(($SLURM_ARRAY_TASK_ID-1)) ; fi
-    if [ $world_size -gt 1 ] && [ -z $distributed_init ] ; then 
-        echo "In distributed training, but --distributed_init is not specified."
-        exit 1 ;
-    fi
     echo "Hostname: `hostname`."
     echo "CUDA Devices: $CUDA_VISIBLE_DEVICES"
-    echo "World size: $world_size"
-    echo "Rank: $rank"
-    echo "Training start. See the progress via ${expdir}/train.${rank}.log."
-    ${cuda_cmd} --gpu 1 "${expdir}/log/train.${rank}.log" \
+    echo "Training start. See the progress via ${expdir}/train.log."
+    ${cuda_cmd} --gpu 1 "${expdir}/log/train.log" \
         train.py \
             --config "${conf}" \
             --train-wav-scp $datadir/${train_set}/wav.scp \
@@ -96,9 +89,6 @@ if [ "${stage}" -le 2 ] && [ "${stop_stage}" -ge 2 ]; then
             --hop-size ${hop_size} \
             --num-mels ${num_mels} \
             --win-length ${win_length} \
-            --world-size ${world_size} \
-            --rank ${rank} \
-            --distributed-init "${distributed_init}" \
             --verbose "${verbose}"
     echo "Successfully finished training."
 fi

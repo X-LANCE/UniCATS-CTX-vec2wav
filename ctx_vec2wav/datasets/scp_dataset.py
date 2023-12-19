@@ -169,7 +169,7 @@ class AudioMelSCPDataset(Dataset):
             else:
                 fs, audio = self.audio_loader[utt_id]
                 mel = self.mel_loader[utt_id]
-                vqidx = self.vqidx_loader[utt_id].astype(int)
+                vqidx = self.vqidx_loader[utt_id]
                 aux = self.aux_loader[utt_id]
 
                 min_len = min(len(mel), len(vqidx), len(aux))
@@ -283,7 +283,7 @@ class MelSCPDataset(Dataset):
             return self.caches[idx]
 
         utt_id = self.utt_ids[idx]
-        vqidx = self.vqidx_loader[utt_id].astype(int)
+        vqidx = self.vqidx_loader[utt_id]
         prompt = self.prompt_loader[utt_id].copy()
 
         if self.return_utt_id:

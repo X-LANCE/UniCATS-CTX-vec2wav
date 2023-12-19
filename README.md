@@ -63,7 +63,7 @@ bash run.sh --stage 2 --stop_stage 2
 # You can provide different config file by --conf $your_config
 # Checkout run.sh for all the parameters. You can specify every bash variable there as "--key value" in CLI. 
 ```
-This will create `exp/train_all_ctxv2w.v1` for logging.
+This will create `exp/train_all_ctxv2w.v1` for logging. The script **automatically handles multi-GPU training** if you specify the $CUDA_VISIBLE_DEVICES env variable.
 
 ## Pre-trained model parameters
 We release two versions of model parameters (generator) on LibriTTS train-all set. These refer to two sampling rates of the target waveforms. 

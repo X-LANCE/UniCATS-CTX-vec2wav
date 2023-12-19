@@ -126,7 +126,8 @@ lambda_feat_match: 2.0                # Loss balancing coefficient for feat matc
 ###########################################################
 #                  DATA LOADER SETTING                    #
 ###########################################################
-batch_size: 12
+batch_size: 12  # for V100
+# or batch_frames: 3000 for A10. Specify batch_frames or batch_size, but not both.
 crop_max_frames: 100
 max_num_frames: 2600
 min_num_frames: 500

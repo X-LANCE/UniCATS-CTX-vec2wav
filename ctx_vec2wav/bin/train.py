@@ -36,7 +36,9 @@ from ctx_vec2wav.losses import FeatureMatchLoss
 from ctx_vec2wav.losses import GeneratorAdversarialLoss
 from ctx_vec2wav.losses import MelSpectrogramLoss
 from ctx_vec2wav.losses import MultiResolutionSTFTLoss
+import torch.multiprocessing as mp
 from ctx_vec2wav.utils import crop_seq
+from torch.utils.data.distributed import DistributedSampler
 
 from ctx_vec2wav.utils.espnet_utils import pad_list, make_non_pad_mask
 
@@ -664,7 +666,7 @@ class Collator(object):
 
             ys[i] = ys[i][data_offset * self.hop_size:]
 
-        vqs = pad_list([torch.tensor(c) for c in vqs], pad_value=0)  # (B, L, 2)
+        vqs = pad_list([torch.tensor(c).long() for c in vqs], pad_value=0)  # (B, L, 2)
         mels = pad_list([torch.tensor(c) for c in mels], pad_value=0)  # (B, L, 80)
         auxs = pad_list([torch.tensor(c) for c in auxs], pad_value=0)  # (B, L, 3)
 
@@ -692,7 +694,7 @@ class Collator(object):
         return x, c, *args
 
 
-def main():
+def main(rank, n_gpus):
     """Run training process."""
     parser = argparse.ArgumentParser(
         description="Train Parallel WaveGAN (See detail in ctx_vec2wav/bin/train.py)."
@@ -825,24 +827,7 @@ def main():
         default=1,
         help="logging level. higher is more logging. (default=1)",
     )
-    parser.add_argument(
-        "--world-size",
-        default=1,
-        type=int,
-        help="world size for distributed training. no need to explictly specify.",
-    )
-    parser.add_argument(
-        "--rank",
-        default=0,
-        type=int,
-        help="rank for distributed training. no need to explictly specify.",
-    )
-    parser.add_argument(
-        "--distributed-init",
-        default="/tmp/init",
-        type=str,
-        help="The file for init_process_group in distributed training.",
-    )
+
     parser.add_argument("--vq-codebook", default=None, type=str)
     parser.add_argument("--sampling-rate", type=int)
     parser.add_argument("--num-mels", type=int)
@@ -851,19 +836,14 @@ def main():
     args = parser.parse_args()
 
     # init distributed training
-    if not torch.cuda.is_available():
-        device = torch.device("cpu")
-        args.distributed = False
-    else:
-        device = torch.device("cuda")
-        # effective when using fixed size inputs
-        # see https://discuss.pytorch.org/t/what-does-torch-backends-cudnn-benchmark-do/5936
-        torch.backends.cudnn.benchmark = True
-        # setup for distributed training
-        # see example: https://github.com/NVIDIA/apex/tree/master/examples/simple/distributed
-        args.distributed = args.world_size > 1
-        if args.world_size == 1:
-            assert args.rank == 0
+    device = torch.device("cuda")
+    # effective when using fixed size inputs
+    # see https://discuss.pytorch.org/t/what-does-torch-backends-cudnn-benchmark-do/5936
+    torch.backends.cudnn.benchmark = True
+    # setup for distributed training
+    # see example: https://github.com/NVIDIA/apex/tree/master/examples/simple/distributed
+    if n_gpus == 1:
+        assert rank == 0
 
     # set logger
     if args.verbose > 1:
@@ -891,24 +871,26 @@ def main():
         os.makedirs(args.outdir)
 
     # init process group
-    if args.distributed:
-        logging.info("Synchronizing between all workers.")
-        torch.distributed.init_process_group(backend="nccl", init_method="file://%s" % args.distributed_init, world_size=args.world_size,
-                                             rank=args.rank)
-        logging.info("Finished init process group.")
-    else:
-        logging.info("Training on a single GPU.")
+    logging.info("Synchronizing between all workers.")
+    torch.distributed.init_process_group(backend="nccl", init_method="env://", world_size=n_gpus, rank=rank)
+    torch.cuda.set_device(rank)
+    logging.info("Finished init process group.")
 
     # load and save config
     with open(args.config) as f:
         config = yaml.load(f, Loader=yaml.Loader)
     config.update(vars(args))
     config["version"] = ctx_vec2wav.__version__  # add version info
-    with open(os.path.join(args.outdir, "config.yml"), "w") as f:
-        yaml.dump(config, f, Dumper=yaml.Dumper)
-    for key, value in config.items():
-        logging.info(f"{key} = {value}")
 
+    config['rank'] = rank
+    config['distributed'] = True
+    config['world_size'] = n_gpus
+    if rank == 0:
+        with open(os.path.join(args.outdir, "config.yml"), "w") as f:
+            yaml.dump(config, f, Dumper=yaml.Dumper)
+
+        for key, value in config.items():
+            logging.info(f"{key} = {value}")
     # get dataset
     train_dataset = AudioMelSCPDataset(
         wav_scp=args.train_wav_scp,
@@ -924,7 +906,8 @@ def main():
         allow_cache=config.get("allow_cache", False),  # keep compatibility
         length_tolerance=config.get("length_tolerance", 2)
     )
-    logging.info(f"The number of training files = {len(train_dataset)}.")
+    if rank == 0:
+        logging.info(f"The number of training files = {len(train_dataset)}.")
     dev_dataset = AudioMelSCPDataset(
         wav_scp=args.dev_wav_scp,
         vqidx_scp=args.dev_vqidx_scp,
@@ -937,7 +920,8 @@ def main():
         allow_cache=config.get("allow_cache", False),  # keep compatibility
         length_tolerance=config.get("length_tolerance", 2)
     )
-    logging.info(f"The number of development files = {len(dev_dataset)}.")
+    if rank == 0:
+        logging.info(f"The number of development files = {len(dev_dataset)}.")
     dataset = {
         "train": train_dataset,
         "dev": dev_dataset,
@@ -950,27 +934,21 @@ def main():
         sampling_rate=config["sampling_rate"],
         n_mel=config["num_mels"]
     )
-    sampler = {"train": None, "dev": None}
-    if args.distributed:
-        # setup sampler for distributed training
-        from torch.utils.data.distributed import DistributedSampler
-
-        sampler["train"] = DistributedSampler(
-            dataset=dataset["train"],
-            num_replicas=args.world_size,
-            rank=args.rank,
-            shuffle=True,
-        )
-        sampler["dev"] = DistributedSampler(
-            dataset=dataset["dev"],
-            num_replicas=args.world_size,
-            rank=args.rank,
-            shuffle=False,
-        )
+    sampler = {"train": DistributedSampler(
+        dataset=dataset["train"],
+        num_replicas=n_gpus,
+        rank=rank,
+        shuffle=True,
+    ), "dev": DistributedSampler(
+        dataset=dataset["dev"],
+        num_replicas=n_gpus,
+        rank=rank,
+        shuffle=False,
+    )}
     data_loader = {
         "train": DataLoader(
             dataset=dataset["train"],
-            shuffle=False if args.distributed else True,
+            shuffle=False,
             collate_fn=collator,
             num_workers=config["num_workers"],
             sampler=sampler["train"],
@@ -978,7 +956,7 @@ def main():
         ),
         "dev": DataLoader(
             dataset=dataset["dev"],
-            shuffle=False if args.distributed else True,
+            shuffle=False,
             collate_fn=collator,
             num_workers=config["num_workers"],
             sampler=sampler["dev"],
@@ -1105,22 +1083,16 @@ def main():
             **config["discriminator_scheduler_params"],
         ),
     }
-    if args.distributed:
-        # wrap model for distributed training
-        try:
-            from apex.parallel import DistributedDataParallel
-        except ImportError:
-            raise ImportError(
-                "apex is not installed. please check https://github.com/NVIDIA/apex."
-            )
-        model["generator"] = DistributedDataParallel(model["generator"])
-        model["discriminator"] = DistributedDataParallel(model["discriminator"])
+    from torch.nn.parallel import DistributedDataParallel
+    model["generator"] = DistributedDataParallel(model["generator"], device_ids=[rank], find_unused_parameters=True)
+    model["discriminator"] = DistributedDataParallel(model["discriminator"], device_ids=[rank], find_unused_parameters=True)
 
-    # show settings
-    logging.info(model["generator"])
-    logging.info(model["discriminator"])
-    logging.info(optimizer["generator"])
-    logging.info(optimizer["discriminator"])
+    if rank == 0:
+        # show settings
+        logging.info(model["generator"])
+        logging.info(model["discriminator"])
+        logging.info(optimizer["generator"])
+        logging.info(optimizer["discriminator"])
 
     # define trainer
     trainer = Trainer(
@@ -1139,22 +1111,36 @@ def main():
     # load pretrained parameters from checkpoint
     if len(args.pretrain) != 0:
         trainer.load_checkpoint(args.pretrain, load_only_params=True)
-        logging.info(f"Successfully load parameters from {args.pretrain}.")
+        if rank == 0:
+            logging.info(f"Successfully load parameters from {args.pretrain}.")
 
     # resume from checkpoint
     if len(args.resume) != 0:
         trainer.load_checkpoint(args.resume)
-        logging.info(f"Successfully resumed from {args.resume}.")
+        if rank == 0:
+            logging.info(f"Successfully resumed from {args.resume}.")
 
     # run training loop
     try:
         trainer.run()
     finally:
-        trainer.save_checkpoint(
-            os.path.join(config["outdir"], f"checkpoint-{trainer.steps}steps.pkl")
-        )
-        logging.info(f"Successfully saved checkpoint @ {trainer.steps}steps.")
+        if rank == 0:
+            trainer.save_checkpoint(
+                os.path.join(config["outdir"], f"checkpoint-{trainer.steps}steps.pkl")
+            )
+            logging.info(f"Successfully saved checkpoint @ {trainer.steps}steps.")
 
 
 if __name__ == "__main__":
-    main()
+    assert torch.cuda.is_available(), "CPU training is not allowed."
+    n_gpus = torch.cuda.device_count()
+    print(f"============> using {n_gpus} GPUS")
+    os.environ["MASTER_ADDR"] = "localhost"
+    os.environ["MASTER_PORT"] = "8000"
+
+    mp.spawn(
+        main,
+        nprocs=n_gpus,
+        args=(n_gpus,)
+    )
+
