@@ -4,6 +4,7 @@
 
 <img width="1187" alt="image-20230926140022539" src=asset/main.png>
 
+See also: [The official implementation of CTX-txt2vec](https://github.com/X-LANCE/UniCATS-CTX-txt2vec), the acoustic model with contextual VQ-diffusion, proposed in the paper.
 ## Environment Setup
 
 This repo is tested on **python 3.9** on Linux. You can set up the environment with conda
