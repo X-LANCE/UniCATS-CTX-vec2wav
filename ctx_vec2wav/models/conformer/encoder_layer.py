@@ -11,7 +11,7 @@ import torch
 
 from torch import nn
 
-from espnet.nets.pytorch_backend.transformer.layer_norm import LayerNorm
+from ctx_vec2wav.models.conformer.layer_norm import LayerNorm
 
 
 class EncoderLayer(nn.Module):
