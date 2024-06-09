@@ -47,9 +47,10 @@ You can customize this process and perform inference yourself:
         --feats-scp /path/to/feats.scp \
         --prompt-scp /path/to/prompt.scp \
         --num-frames /path/to/utt2num_frames \
+        --config /path/to/config.yaml \
+        --vq-codebook /path/to/codebook.npy \
         --checkpoint /path/to/checkpoint \
-        --outdir /path/to/output/wav \
-        --verbose ${verbose}  # logging level. higher is more logging. (default=1)
+        --outdir /path/to/output/wav
     ```
 
 ## Training

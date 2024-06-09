@@ -78,6 +78,12 @@ def main():
         "it will be searched in the checkpoint directory. (default=None)",
     )
     parser.add_argument(
+        "--vq-codebook",
+        default=None,
+        type=str,
+        help="the VQ codebook npy to be loaded. Will override that in 'config'."
+    )
+    parser.add_argument(
         "--normalize-before",
         default=False,
         action="store_true",
