@@ -116,6 +116,7 @@ if [ "${stage}" -le 3 ] && [ "${stop_stage}" -ge 3 ]; then
         echo "Decoding start. See the progress via ${outdir}/${name}/log/decode.log."
         ${cuda_cmd} --gpu 1 "${outdir}/${name}/log/decode.log" \
             decode.py \
+                --sampling-rate $sampling_rate \
                 --feats-scp ${featdir}/vqidx/${name}/feats.scp \
                 --prompt-scp ${datadir}/${name}/prompt.scp \
                 --num-frames ${datadir}/${name}/utt2num_frames \

@@ -19,44 +19,6 @@ import numpy as np
 import torch
 import yaml
 
-PRETRAINED_MODEL_LIST = {
-    "ljspeech_parallel_wavegan.v1": "1PdZv37JhAQH6AwNh31QlqruqrvjTBq7U",
-    "ljspeech_parallel_wavegan.v1.long": "1A9TsrD9fHxFviJVFjCk5W6lkzWXwhftv",
-    "ljspeech_parallel_wavegan.v1.no_limit": "1CdWKSiKoFNPZyF1lo7Dsj6cPKmfLJe72",
-    "ljspeech_parallel_wavegan.v3": "1-oZpwpWZMMolDYsCqeL12dFkXSBD9VBq",
-    "ljspeech_melgan.v1": "1i7-FPf9LPsYLHM6yNPoJdw5Q9d28C-ip",
-    "ljspeech_melgan.v1.long": "1x1b_R7d2561nqweK3FPb2muTdcFIYTu6",
-    "ljspeech_melgan.v3": "1J5gJ_FUZhOAKiRFWiAK6FcO5Z6oYJbmQ",
-    "ljspeech_melgan.v3.long": "124JnaLcRe7TsuAGh3XIClS3C7Wom9AU2",
-    "ljspeech_full_band_melgan.v2": "1Kb7q5zBeQ30Wsnma0X23G08zvgDG5oen",
-    "ljspeech_multi_band_melgan.v2": "1b70pJefKI8DhGYz4SxbEHpxm92tj1_qC",
-    "ljspeech_hifigan.v1": "1i6-hR_ksEssCYNlNII86v3AoeA1JcuWD",
-    "ljspeech_style_melgan.v1": "10aJSZfmCAobQJgRGio6cNyw6Xlgmme9-",
-    "jsut_parallel_wavegan.v1": "1qok91A6wuubuz4be-P9R2zKhNmQXG0VQ",
-    "jsut_multi_band_melgan.v2": "1chTt-76q2p69WPpZ1t1tt8szcM96IKad",
-    "jsut_hifigan.v1": "1vdgqTu9YKyGMCn-G7H2fI6UBC_4_55XB",
-    "jsut_style_melgan.v1": "1VIkjSxYxAGUVEvJxNLaOaJ7Twe48SH-s",
-    "csmsc_parallel_wavegan.v1": "1QTOAokhD5dtRnqlMPTXTW91-CG7jf74e",
-    "csmsc_multi_band_melgan.v2": "1G6trTmt0Szq-jWv2QDhqglMdWqQxiXQT",
-    "csmsc_hifigan.v1": "1fVKGEUrdhGjIilc21Sf0jODulAq6D1qY",
-    "csmsc_style_melgan.v1": "1kGUC_b9oVSv24vZRi66AAbSNUKJmbSCX",
-    "arctic_slt_parallel_wavegan.v1": "1_MXePg40-7DTjD0CDVzyduwQuW_O9aA1",
-    "jnas_parallel_wavegan.v1": "1D2TgvO206ixdLI90IqG787V6ySoXLsV_",
-    "vctk_parallel_wavegan.v1": "1bqEFLgAroDcgUy5ZFP4g2O2MwcwWLEca",
-    "vctk_parallel_wavegan.v1.long": "1tO4-mFrZ3aVYotgg7M519oobYkD4O_0-",
-    "vctk_multi_band_melgan.v2": "10PRQpHMFPE7RjF-MHYqvupK9S0xwBlJ_",
-    "vctk_hifigan.v1": "1oVOC4Vf0DYLdDp4r7GChfgj7Xh5xd0ex",
-    "vctk_style_melgan.v1": "14ThSEgjvl_iuFMdEGuNp7d3DulJHS9Mk",
-    "libritts_parallel_wavegan.v1": "1zHQl8kUYEuZ_i1qEFU6g2MEu99k3sHmR",
-    "libritts_parallel_wavegan.v1.long": "1b9zyBYGCCaJu0TIus5GXoMF8M3YEbqOw",
-    "libritts_multi_band_melgan.v2": "1kIDSBjrQvAsRewHPiFwBZ3FDelTWMp64",
-    "libritts_hifigan.v1": "1_TVFIvVtMn-Z4NiQrtrS20uSJOvBsnu1",
-    "libritts_style_melgan.v1": "1yuQakiMP0ECdB55IoxEGCbXDnNkWCoBg",
-    "kss_parallel_wavegan.v1": "1mLtQAzZHLiGSWguKCGG0EZa4C_xUO5gX",
-    "hui_acg_hokuspokus_parallel_wavegan.v1": "1irKf3okMLau56WNeOnhr2ZfSVESyQCGS",
-    "ruslan_parallel_wavegan.v1": "1M3UM6HN6wrfSe5jdgXwBnAIl_lJzLzuI",
-}
-
 
 def find_files(root_dir, query="*.wav", include_root_dir=True):
     """Find files recursively.
@@ -319,26 +281,12 @@ def load_model(checkpoint, config=None, stats=None):
         config.get("generator_type", "ParallelWaveGANGenerator"),
     )
     model = ctx_vec2wav.models.CTXVEC2WAVGenerator(
-        ctx_vec2wav.models.CTXVEC2WAVFrontend(config["num_mels"], **config["frontend_params"]),
+        ctx_vec2wav.models.CTXVEC2WAVFrontend(config["frontend_params"]['prompt_channels'], **config["frontend_params"]),
         model_class(**config["generator_params"])
     )
     model.load_state_dict(
         torch.load(checkpoint, map_location="cpu")["model"]["generator"]
     )
-
-    # # check stats existence
-    # if stats is None:
-    #     dirname = os.path.dirname(checkpoint)
-    #     if config["format"] == "hdf5":
-    #         ext = "h5"
-    #     else:
-    #         ext = "npy"
-    #     if os.path.exists(os.path.join(dirname, f"stats.{ext}")):
-    #         stats = os.path.join(dirname, f"stats.{ext}")
-
-    # # load stats
-    # if stats is not None:
-    #     model.register_stats(stats)
 
     # add pqmf if needed
     if config["generator_params"]["out_channels"] > 1:
@@ -356,40 +304,6 @@ def load_model(checkpoint, config=None, stats=None):
 
     return model
 
-
-def download_pretrained_model(tag, download_dir=None):
-    """Download pretrained model form google drive.
-
-    Args:
-        tag (str): Pretrained model tag.
-        download_dir (str): Directory to save downloaded files.
-
-    Returns:
-        str: Path of downloaded model checkpoint.
-
-    """
-    assert tag in PRETRAINED_MODEL_LIST, f"{tag} does not exists."
-    id_ = PRETRAINED_MODEL_LIST[tag]
-    if download_dir is None:
-        download_dir = os.path.expanduser("~/.cache/ctx_vec2wav")
-    output_path = f"{download_dir}/{tag}.tar.gz"
-    os.makedirs(f"{download_dir}", exist_ok=True)
-    with FileLock(output_path + ".lock"):
-        if not os.path.exists(output_path):
-            # lazy load for compatibility
-            import gdown
-
-            gdown.download(
-                f"https://drive.google.com/uc?id={id_}", output_path, quiet=False
-            )
-            with tarfile.open(output_path, "r:*") as tar:
-                for member in tar.getmembers():
-                    if member.isreg():
-                        member.name = os.path.basename(member.name)
-                        tar.extract(member, f"{download_dir}/{tag}")
-    checkpoint_path = find_files(f"{download_dir}/{tag}", "checkpoint*.pkl")
-
-    return checkpoint_path[0]
 
 def crop_seq(x, offsets, length):
     """Crop padded tensor with specified length.

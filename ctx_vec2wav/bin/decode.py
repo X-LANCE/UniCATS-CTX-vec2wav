@@ -29,6 +29,16 @@ def main():
         "(See detail in ctx_vec2wav/bin/decode.py)."
     )
     parser.add_argument(
+        "--num-mels",
+        default=80,
+        type=int
+    )
+    parser.add_argument(
+        "--sampling-rate",
+        default=16000,
+        type=int
+    )
+    parser.add_argument(
         "--feats-scp",
         "--scp",
         default=None,

@@ -43,7 +43,9 @@ You can customize this process and perform inference yourself:
 3. Prepare a `prompt.scp` that specifies each utterance with its acoustic (mel) prompt in `(L', 80)` shape.
 4. Run inference via
     ```shell
+    # might change sampling rate.
     decode.py \
+        --sampling-rate 16000 \
         --feats-scp /path/to/feats.scp \
         --prompt-scp /path/to/prompt.scp \
         --num-frames /path/to/utt2num_frames \
